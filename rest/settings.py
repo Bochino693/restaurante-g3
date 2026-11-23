@@ -1,8 +1,9 @@
 from decimal import Decimal
 from pathlib import Path
 import os
+import secrets
+
 import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,13 +12,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 NA_VERCEL = bool(os.environ.get("VERCEL"))
 DEBUG = os.environ.get("DEBUG", "False" if NA_VERCEL else "True").strip().lower() in ("true", "1")
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "")
+# O que falta configurar em produção. Este arquivo NUNCA pode dar erro ao ser
+# lido: a Vercel lê as configurações durante o build, antes de o site existir.
+# Com algo pendente, o site sobe e responde com um aviso dizendo o que falta
+# (core.middleware.ConfiguracaoPendente).
+CONFIG_PENDENTE = []
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
 if not SECRET_KEY:
-    if not DEBUG:
-        raise ImproperlyConfigured(
-            "Defina a variável de ambiente SECRET_KEY (Vercel > Settings > Environment Variables)."
-        )
-    SECRET_KEY = "chave-somente-para-desenvolvimento"
+    if DEBUG:
+        SECRET_KEY = "chave-somente-para-desenvolvimento"
+    else:
+        # Chave sorteada só para o processo subir; o aviso bloqueia o uso.
+        SECRET_KEY = secrets.token_urlsafe(50)
+        CONFIG_PENDENTE.append("SECRET_KEY: crie a variável com uma chave longa e aleatória.")
 
 ALLOWED_HOSTS = [
     "127.0.0.1",
@@ -65,6 +73,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'core.middleware.ConfiguracaoPendente',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -93,29 +102,36 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'rest.wsgi.application'
 
-if os.environ.get("DATABASE_URL"):
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=os.environ.get("DATABASE_URL"),
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+if DATABASE_URL:
+    try:
+        DATABASES["default"] = dj_database_url.parse(
+            DATABASE_URL,
             # Na Vercel cada função quente reaproveita a conexão (menos
             # latência por requisição); o health check descarta a conexão
             # que o pooler do Supabase fechou enquanto a função dormia.
             conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "60")),
             conn_health_checks=True,
-            ssl_require=True,   # Supabase exige SSL — estava False
+            ssl_require=True,   # Supabase exige SSL
         )
-    }
-    # Pooler do Supabase em modo transação (porta 6543) não suporta cursores
-    # do lado do servidor.
-    if ":6543" in os.environ.get("DATABASE_URL", ""):
-        DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+        # Pooler do Supabase em modo transação (porta 6543) não suporta
+        # cursores do lado do servidor.
+        if ":6543" in DATABASE_URL:
+            DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
+    except Exception as erro:   # URL colada errada não pode derrubar o build
+        CONFIG_PENDENTE.append(
+            f"DATABASE_URL: o endereço do banco não foi entendido ({type(erro).__name__}). "
+            "Copie de novo a URI do Supabase; se a senha tiver @ # / : ou %, troque a senha ou codifique."
+        )
+elif NA_VERCEL:
+    # Sem banco externo, na Vercel o SQLite nem grava: melhor avisar.
+    CONFIG_PENDENTE.append("DATABASE_URL: crie a variável com a URI do banco (Supabase).")
 
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME"),
@@ -179,10 +195,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# Em produção sem banco externo o SQLite some a cada deploy (e na Vercel nem
-# grava): melhor avisar no log do que perder pedido.
-if NA_VERCEL and not os.environ.get("DATABASE_URL"):
-    raise ImproperlyConfigured("Defina DATABASE_URL (banco do Supabase) nas variáveis da Vercel.")
 
 # Horário de funcionamento. LOJA_DIAS: 0 = segunda ... 6 = domingo.
 # LOJA_FECHA menor que LOJA_ABRE = fecha depois da meia-noite (ex.: 10 e 2).
