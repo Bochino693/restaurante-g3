@@ -1,0 +1,210 @@
+from decimal import Decimal
+from pathlib import Path
+import os
+import dj_database_url
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "troque-isso")
+DEBUG = os.environ.get("DEBUG", "True") == "True"
+
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    ".onrender.com",
+    ".vercel.app",
+]
+
+# Permite adicionar hosts extras via variável de ambiente, sem precisar redeploy do código
+hosts_extra = os.environ.get("ALLOWED_HOSTS_EXTRA", "")
+if hosts_extra:
+    ALLOWED_HOSTS += [h.strip() for h in hosts_extra.split(",") if h.strip()]
+
+# Necessário no Django 4+ para aceitar POST/CSRF vindos de domínios https externos
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.onrender.com",
+    "https://*.vercel.app",
+]
+
+csrf_extra = os.environ.get("CSRF_TRUSTED_ORIGINS_EXTRA", "")
+if csrf_extra:
+    CSRF_TRUSTED_ORIGINS += [c.strip() for c in csrf_extra.split(",") if c.strip()]
+
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "pedidos"
+
+# Fotos de produto: até 8 MB por envio.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
+LOGOUT_REDIRECT_URL = "login"
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'cloudinary_storage',
+    'cloudinary',
+
+    'core',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'rest.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+                'core.context_processors.global_context',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'rest.wsgi.application'
+
+if os.environ.get("DATABASE_URL"):
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.environ.get("DATABASE_URL"),
+            # Na Vercel cada função quente reaproveita a conexão (menos
+            # latência por requisição); o health check descarta a conexão
+            # que o pooler do Supabase fechou enquanto a função dormia.
+            conn_max_age=int(os.environ.get("DB_CONN_MAX_AGE", "60")),
+            conn_health_checks=True,
+            ssl_require=True,   # Supabase exige SSL — estava False
+        )
+    }
+    # Pooler do Supabase em modo transação (porta 6543) não suporta cursores
+    # do lado do servidor.
+    if ":6543" in os.environ.get("DATABASE_URL", ""):
+        DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    "API_KEY": os.environ.get("CLOUDINARY_API_KEY"),
+    "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET"),
+}
+
+# Sem as chaves da Cloudinary (máquina de desenvolvimento), as imagens ficam
+# no disco em vez de derrubar a página com "Must supply cloud_name".
+USAR_CLOUDINARY = bool(CLOUDINARY_STORAGE["CLOUD_NAME"])
+
+STORAGES = {
+    "default": {
+        "BACKEND": (
+            "cloudinary_storage.storage.MediaCloudinaryStorage"
+            if USAR_CLOUDINARY
+            else "django.core.files.storage.FileSystemStorage"
+        ),
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+LANGUAGE_CODE = 'pt-br'
+TIME_ZONE = 'America/Sao_Paulo'
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Arquivos estáticos com cache longo: os links levam "?v=<versão>" (ver
+# core.context_processors), então um arquivo novo muda de endereço. O
+# s-maxage deixa a borda da Vercel guardar a resposta e poupa a função.
+WHITENOISE_MAX_AGE = 60 * 60 * 24 * 30
+
+
+def _cabecalhos_estaticos(headers, path, url):
+    headers["Cache-Control"] = "public, max-age=2592000, s-maxage=2592000, immutable"
+
+
+WHITENOISE_ADD_HEADERS_FUNCTION = _cabecalhos_estaticos
+
+# Proxy da Vercel/Render: o Django enxerga o HTTPS original.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Horário de funcionamento. LOJA_DIAS: 0 = segunda ... 6 = domingo.
+# LOJA_FECHA menor que LOJA_ABRE = fecha depois da meia-noite (ex.: 10 e 2).
+LOJA_DIAS = tuple(
+    int(d) for d in os.environ.get("LOJA_DIAS", "0,1,2,3,4,5,6").split(",") if d.strip().isdigit()
+)
+LOJA_ABRE = int(os.environ.get("LOJA_ABRE", "10"))
+LOJA_FECHA = int(os.environ.get("LOJA_FECHA", "23"))
+
+# Relatório de bebidas (Pedidos e Estatísticas): conta como bebida todo
+# produto cuja CATEGORIA tem no nome uma destas palavras (maiúscula ou
+# minúscula tanto faz): "Bebidas", "Refrigerantes", "Sucos naturais"...
+PALAVRAS_BEBIDAS = [
+    palavra.strip()
+    for palavra in os.environ.get("PALAVRAS_BEBIDAS", "bebida,refri,suco,cerveja,drink,dose,destilado,whisky,cachaça,vinho,chopp,água").split(",")
+    if palavra.strip()
+]
+
+# Refri da marmita (opcional, desligado com 0): a bebida barata já cadastrada
+# aparece como primeiro adicional de toda marmita deste preço. É bebida de
+# categoria de bebidas, com nome de refri/suco e preço até o teto.
+MARMITA_PRECO_COM_REFRI = Decimal(os.environ.get("MARMITA_PRECO_COM_REFRI", "0"))
+REFRI_MARMITA_PRECO_MAX = Decimal(os.environ.get("REFRI_MARMITA_PRECO_MAX", "2.00"))
+
+# WhatsApp da casa (só dígitos, com DDI e DDD). Vale quando o campo de
+# Configurações está vazio.
+WHATSAPP_LOJA = os.environ.get("WHATSAPP_LOJA", "")
+
+# Chave do agente de impressão externo (opcional). Vazia = agente desligado.
+IMPRESSAO_API_KEY = os.environ.get("IMPRESSAO_API_KEY", "")
+
+# QZ Tray: certificado próprio (grátis) e chave privada, para o QZ lembrar a
+# permissão do site. Gere com `python qz/gerar_certificado.py`.
+QZ_CERTIFICADO = os.environ.get("QZ_CERTIFICADO", "")
+QZ_CHAVE_PRIVADA = os.environ.get("QZ_CHAVE_PRIVADA", "")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

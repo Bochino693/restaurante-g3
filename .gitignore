@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+db.sqlite3
+media/
+node_modules/
+.idea/
+qz/private-key.pem
+qz/digital-certificate.txt
+qz/COLAR-NA-VERCEL.txt

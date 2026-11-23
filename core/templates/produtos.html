@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+{% block title %}Produtos{% endblock %}
+
+{% block content %}
+<div class="g-pagina">
+    <header class="g-cabeca">
+        <div>
+            <h1><i class="fas fa-martini-glass-citrus"></i> Produtos</h1>
+            <p>Almoço, porções, doses e bebidas: foto, preço, custo e estoque de cada item.</p>
+        </div>
+        <div class="g-acoes">
+            <button type="button" class="g-btn" onclick="Produtos.novaCategoria()"><i class="fas fa-folder-plus"></i> Categoria</button>
+            <button type="button" class="g-btn g-btn-marca" onclick="Produtos.abrir()"><i class="fas fa-plus"></i> Novo produto</button>
+        </div>
+    </header>
+
+    <section class="g-kpis">
+        <div class="g-kpi bom"><i class="fas fa-utensils"></i><div><span>No cardápio</span><strong>{{ total_ativos }}</strong></div></div>
+        <div class="g-kpi"><i class="fas fa-layer-group"></i><div><span>Categorias</span><strong>{{ categorias|length }}</strong></div></div>
+        <div class="g-kpi {% if sem_foto %}alerta{% else %}bom{% endif %}"><i class="fas fa-camera"></i><div><span>Sem foto</span><strong>{{ sem_foto }}</strong></div></div>
+    </section>
+
+    <div class="g-filtros">
+        <div class="g-busca"><i class="fas fa-magnifying-glass"></i><input id="pBusca" type="search" placeholder="Buscar produto ou código..." autocomplete="off"></div>
+        <div class="g-chips" id="pCategorias">
+            <button type="button" class="g-chip ativo" data-cat="">Todos</button>
+            {% for c in categorias %}<button type="button" class="g-chip" data-cat="{{ c.id }}">{{ c.nome_categoria }} · {{ c.qtd }}</button>{% endfor %}
+        </div>
+    </div>
+
+    <div class="p-grade" id="pGrade">
+        {% for p in produtos %}
+        <article class="p-card{% if not p.ativo %} inativo{% endif %}" data-id="{{ p.id }}" data-cat="{{ p.categoria_id }}"
+                 data-busca="{{ p.nome_produto|lower }} {{ p.codigo }}">
+            <div class="p-foto">
+                {% if p.image_produto %}<img src="{{ p.image_produto.url }}" alt="{{ p.nome_produto }}" loading="lazy">{% else %}<i class="fas fa-camera"></i>{% endif %}
+                <span class="p-selo{% if p.produto_base_id %} dose{% endif %}">{% if not p.ativo %}Fora do cardápio{% elif p.produto_base_id %}Dose{% else %}{{ p.categoria.nome_categoria }}{% endif %}</span>
+                {% if p.controla_estoque %}<span class="p-selo estoque {{ p.situacao_estoque }}"><i class="fas fa-cubes-stacked"></i> {{ p.estoque_atual|floatformat:"-2" }}</span>{% endif %}
+            </div>
+            <div class="p-corpo">
+                <h3>{{ p.nome_produto }}</h3>
+                <small>{% if p.produto_base_id %}1/{{ p.fracoes_por_unidade }} de {{ p.produto_base.nome_produto }}{% else %}{{ p.get_unidade_display }}{% if p.codigo %} · #{{ p.codigo }}{% endif %}{% endif %}</small>
+                <div class="p-preco">
+                    <b>R$ {{ p.preco|floatformat:2 }}</b>
+                    {% if p.margem is not None %}<span title="Margem sobre o custo">{{ p.margem }}% margem</span>{% endif %}
+                </div>
+            </div>
+        </article>
+        {% empty %}
+        <div class="p-vazio"><i class="fas fa-martini-glass-empty"></i>Nenhum produto ainda. Crie uma categoria e cadastre o primeiro.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="g-modal" id="pModal" hidden>
+    <div class="g-modal-caixa" role="dialog" aria-modal="true" aria-labelledby="pTitulo">
+        <div class="g-modal-topo">
+            <h2 id="pTitulo">Novo produto</h2>
+            <button type="button" class="g-fechar" onclick="Produtos.fechar()" aria-label="Fechar"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="pForm" class="g-form" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="id">
+            <input type="hidden" name="remover_foto" value="0">
+
+            <div class="g-campo largo">
+                <span class="g-rotulo">Foto</span>
+                <div class="g-foto-area">
+                    <div class="g-foto-previa" id="pPrevia"><i class="fas fa-camera"></i></div>
+                    <div style="display: flex; flex-direction: column; gap: 8px">
+                        <label class="g-btn g-btn-mini" style="width: max-content"><i class="fas fa-upload"></i> Escolher foto
+                            <input type="file" name="image_produto" accept="image/*" hidden id="pFoto"></label>
+                        <button type="button" class="g-btn g-btn-mini" id="pTirarFoto" style="width: max-content" hidden><i class="fas fa-trash"></i> Tirar foto</button>
+                        <span class="dica" style="font-size: 11.5px; color: var(--cf-texto-suave); font-weight: 600">Foto quadrada ou deitada fica melhor no cardápio.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="g-campo largo"><label for="pNome">Nome *</label><input id="pNome" name="nome_produto" maxlength="180" required></div>
+            <div class="g-campo largo"><label for="pDesc">Descrição (aparece no cardápio)</label><input id="pDesc" name="descricao" maxlength="240" placeholder="Ex.: arroz, feijão, bife acebolado e salada"></div>
+            <div class="g-campo"><label for="pCat">Categoria *</label>
+                <select id="pCat" name="categoria" required>
+                    {% for c in categorias %}<option value="{{ c.id }}">{{ c.nome_categoria }}</option>{% endfor %}
+                </select></div>
+            <div class="g-campo"><label for="pUn">Vendido por</label>
+                <select id="pUn" name="unidade">{% for v, n in unidades %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+            <div class="g-campo"><label for="pPreco">Preço de venda (R$) *</label><input id="pPreco" name="preco" inputmode="decimal" required placeholder="0,00"></div>
+            <div class="g-campo"><label for="pCusto">Custo (R$)</label><input id="pCusto" name="custo" inputmode="decimal" placeholder="0,00"><span class="dica">Quanto a casa paga. Dá o lucro.</span></div>
+            <div class="g-campo"><label for="pCod">Código</label><input id="pCod" name="codigo" inputmode="numeric" placeholder="0"></div>
+            <label class="g-liga" style="align-self: end"><input type="checkbox" name="ativo" checked> Aparece no cardápio</label>
+
+            <div class="g-secao"><i class="fas fa-boxes-stacked"></i> Estoque</div>
+            <div class="g-tipos" id="pTipos">
+                <button type="button" class="g-tipo ativo" data-tipo="livre"><i class="fas fa-infinity"></i>Sem controle<br><small>pratos feitos na hora</small></button>
+                <button type="button" class="g-tipo" data-tipo="proprio"><i class="fas fa-wine-bottle"></i>Estoque próprio<br><small>garrafa, lata, porção</small></button>
+                <button type="button" class="g-tipo" data-tipo="dose"><i class="fas fa-whiskey-glass"></i>Dose<br><small>sai de uma garrafa</small></button>
+            </div>
+            <input type="checkbox" name="controla_estoque" hidden id="pControla">
+
+            <div class="g-campo" data-so="proprio"><label for="pMin">Avisar quando chegar em</label><input id="pMin" name="estoque_minimo" inputmode="decimal" placeholder="Ex.: 6"></div>
+            <div class="g-campo" data-so="proprio" id="pInicialCampo"><label for="pInicial">Quantidade em estoque agora</label><input id="pInicial" name="estoque_inicial" inputmode="decimal" placeholder="Ex.: 24"></div>
+            <div class="g-campo" data-so="dose"><label for="pBase">Garrafa de onde sai</label>
+                <select id="pBase" name="produto_base">
+                    <option value="">Escolha...</option>
+                    {% for g in garrafas %}<option value="{{ g.id }}">{{ g.nome_produto }}</option>{% endfor %}
+                </select><span class="dica">Só aparecem produtos com estoque próprio.</span></div>
+            <div class="g-campo" data-so="dose"><label for="pFracoes">Doses por garrafa</label><input id="pFracoes" name="fracoes_por_unidade" inputmode="numeric" placeholder="Ex.: 20"><span class="dica">1 litro em doses de 50 ml = 20.</span></div>
+
+            <div class="g-erro" id="pErro" hidden></div>
+            <div class="g-rodape">
+                <button type="button" class="g-btn" id="pAlternar" hidden></button>
+                <button type="submit" class="g-btn g-btn-marca" id="pSalvar"><i class="fas fa-check"></i> Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{ produtos_json|json_script:"produtos-json" }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const Produtos = (function () {
+    const dados = JSON.parse(document.getElementById("produtos-json").textContent);
+    const $ = id => document.getElementById(id);
+    const form = $("pForm"), modal = $("pModal");
+    const csrf = form.querySelector("[name=csrfmiddlewaretoken]").value;
+    let atual = null;
+
+    function tipo(t) {
+        document.querySelectorAll("#pTipos .g-tipo").forEach(b => b.classList.toggle("ativo", b.dataset.tipo === t));
+        document.querySelectorAll("[data-so]").forEach(c => { c.hidden = c.dataset.so !== t; });
+        $("pControla").checked = t === "proprio";
+        if (t !== "dose") $("pBase").value = "";
+        $("pInicialCampo").hidden = t !== "proprio" || !!atual;
+    }
+
+    function previa(url) {
+        $("pPrevia").innerHTML = url ? "" : '<i class="fas fa-camera"></i>';
+        if (url) { const img = new Image(); img.src = url; img.alt = ""; $("pPrevia").appendChild(img); }
+        $("pTirarFoto").hidden = !url;
+    }
+
+    function abrir(id) {
+        atual = id ? dados[id] : null;
+        form.reset();
+        form.elements.id.value = atual ? atual.id : "";
+        form.elements.remover_foto.value = "0";
+        $("pErro").hidden = true;
+        $("pTitulo").textContent = atual ? "Editar produto" : "Novo produto";
+        if (atual) {
+            ["nome_produto", "descricao", "categoria", "unidade", "codigo", "produto_base", "fracoes_por_unidade"]
+                .forEach(c => { form.elements[c].value = atual[c] ?? ""; });
+            form.elements.preco.value = atual.preco.replace(".", ",");
+            form.elements.custo.value = atual.custo.replace(".", ",");
+            form.elements.estoque_minimo.value = String(atual.estoque_minimo).replace(".", ",");
+            form.elements.ativo.checked = atual.ativo;
+        }
+        previa(atual ? atual.imagem : "");
+        tipo(atual ? (atual.produto_base ? "dose" : atual.controla_estoque ? "proprio" : "livre") : "livre");
+        const alt = $("pAlternar");
+        alt.hidden = !atual;
+        if (atual) alt.innerHTML = atual.ativo ? '<i class="fas fa-eye-slash"></i> Tirar do cardápio' : '<i class="fas fa-eye"></i> Voltar ao cardápio';
+        modal.hidden = false;
+        if (!atual) $("pNome").focus();
+    }
+    function fechar() { modal.hidden = true; }
+
+    $("pTipos").addEventListener("click", e => { const b = e.target.closest(".g-tipo"); if (b) tipo(b.dataset.tipo); });
+    $("pFoto").addEventListener("change", e => {
+        const arquivo = e.target.files[0];
+        if (!arquivo) return;
+        form.elements.remover_foto.value = "0";
+        previa(URL.createObjectURL(arquivo));
+    });
+    $("pTirarFoto").addEventListener("click", () => { $("pFoto").value = ""; form.elements.remover_foto.value = "1"; previa(""); });
+    modal.addEventListener("click", e => { if (e.target === modal) fechar(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !modal.hidden) fechar(); });
+
+    function erro(msg) { $("pErro").textContent = msg; $("pErro").hidden = false; }
+
+    form.addEventListener("submit", async e => {
+        e.preventDefault();
+        const botao = $("pSalvar");
+        botao.disabled = true;
+        try {
+            const r = await fetch("{% url 'produtos' %}", { method: "POST", body: new FormData(form) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.ok) return erro(d.erro || "Não foi possível salvar.");
+            location.reload();
+        } catch (_) { erro("Falha de conexão."); } finally { botao.disabled = false; }
+    });
+
+    $("pAlternar").addEventListener("click", async () => {
+        if (!atual) return;
+        const r = await fetch(`/produtos/${atual.id}/alternar/`, { method: "POST", headers: { "X-CSRFToken": csrf } });
+        if (r.ok) location.reload(); else erro("Não foi possível mudar.");
+    });
+
+    async function novaCategoria() {
+        const nome = (prompt("Nome da nova categoria (ex.: Almoço, Doses, Cervejas, Porções):") || "").trim();
+        if (!nome) return;
+        const corpo = new FormData(); corpo.append("nome", nome);
+        const r = await fetch("{% url 'categoria_salvar' %}", { method: "POST", headers: { "X-CSRFToken": csrf }, body: corpo });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.ok) return alert(d.erro || "Não foi possível criar a categoria.");
+        location.reload();
+    }
+
+    /* Busca e filtro por categoria. */
+    let cat = "";
+    function filtrar() {
+        const termo = $("pBusca").value.trim().toLowerCase();
+        document.querySelectorAll(".p-card").forEach(c => {
+            c.hidden = (cat && c.dataset.cat !== cat) || (termo && !c.dataset.busca.includes(termo));
+        });
+    }
+    $("pBusca").addEventListener("input", filtrar);
+    $("pCategorias").addEventListener("click", e => {
+        const b = e.target.closest(".g-chip"); if (!b) return;
+        cat = b.dataset.cat;
+        document.querySelectorAll("#pCategorias .g-chip").forEach(x => x.classList.toggle("ativo", x === b));
+        filtrar();
+    });
+    $("pGrade").addEventListener("click", e => { const c = e.target.closest(".p-card"); if (c) abrir(c.dataset.id); });
+
+    return { abrir, fechar, novaCategoria };
+})();
+</script>
+{% endblock %}

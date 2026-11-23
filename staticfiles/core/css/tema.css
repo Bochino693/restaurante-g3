@@ -1,0 +1,613 @@
+/* =========================================================================
+   IDENTIDADE E TEMAS — G3 Bar e Restaurante
+   Sol (claro), Lua (noite) e Eclipse (preto com a coroa vermelha da marca).
+   O tema vive no atributo data-tema do <html>; os temas escuros também
+   ganham a classe .cf-escuro, que repinta as utilidades do Tailwind.
+   ========================================================================= */
+
+:root,
+html[data-tema="sol"] {
+    --cf-marca: #e3353d;
+    --cf-marca-forte: #b8212b;
+    --cf-marca-suave: rgba(227, 53, 61, .10);
+    --cf-fundo: #f7f4ef;
+    --cf-superficie: #ffffff;
+    --cf-superficie-2: #f4f1ec;
+    --cf-superficie-3: #ebe6de;
+    --cf-borda: #e8e1d6;
+    --cf-texto: #1f1b18;
+    --cf-texto-2: #4a433d;
+    --cf-texto-suave: #7a7068;
+    --cf-sombra: 0 12px 34px rgba(60, 40, 20, .07);
+    --cf-grafico-grade: rgba(120, 100, 80, .14);
+    color-scheme: light;
+}
+
+html[data-tema="lua"] {
+    --cf-marca: #ff5a63;
+    --cf-marca-forte: #ff3b46;
+    --cf-marca-suave: rgba(255, 90, 99, .14);
+    --cf-fundo: #0a0f1e;
+    --cf-superficie: #121a2e;
+    --cf-superficie-2: #18223b;
+    --cf-superficie-3: #212d4b;
+    --cf-borda: #25324f;
+    --cf-texto: #e8ecf7;
+    --cf-texto-2: #c3cbe0;
+    --cf-texto-suave: #8d99b8;
+    --cf-sombra: 0 14px 40px rgba(0, 0, 0, .35);
+    --cf-grafico-grade: rgba(141, 153, 184, .16);
+    color-scheme: dark;
+}
+
+html[data-tema="eclipse"] {
+    --cf-marca: #ff3b45;
+    --cf-marca-forte: #ff1f2b;
+    --cf-marca-suave: rgba(255, 59, 69, .14);
+    --cf-fundo: #050506;
+    --cf-superficie: #101012;
+    --cf-superficie-2: #17171a;
+    --cf-superficie-3: #202024;
+    --cf-borda: #29292e;
+    --cf-texto: #f4f4f5;
+    --cf-texto-2: #d4d4d8;
+    --cf-texto-suave: #9b9ba5;
+    --cf-sombra: 0 14px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 59, 69, .04);
+    --cf-grafico-grade: rgba(155, 155, 165, .14);
+    color-scheme: dark;
+}
+
+/* O fundo mora no <html>; o <body> fica transparente para o céu do tema
+   (camada .cf-ceu, atrás de tudo) aparecer. */
+html { background: var(--cf-fundo); }
+body { background: transparent !important; color: var(--cf-texto); }
+
+/* A troca de tema desliza, não pisca. */
+html.cf-trocando,
+html.cf-trocando *,
+html.cf-trocando *::before,
+html.cf-trocando *::after {
+    transition: background-color .45s ease, border-color .45s ease, color .3s ease, fill .3s ease !important;
+}
+
+.cf-preco { color: var(--cf-marca); }
+
+/* Fotos de bebida: a lata/garrafa aparece inteira, sem corte (o "cover"
+   cortava a lata e parecia zoom). Fundo branco, como foto de produto, e
+   a imagem só diminui, nunca é esticada: fica nítida. */
+img.foto-bebida {
+    object-fit: contain !important;
+    object-position: center;
+    padding: 6px;
+    background: #fff;
+}
+
+/* ----------------------------------------- modal de quantidade (bebidas)
+   Abre ao clicar numa bebida no Caixa e no cardápio. Cresce a partir do
+   card, o número pula a cada mudança e, ao confirmar, o botão vira
+   "Adicionado!" e a foto voa até o carrinho. */
+html.qtd-travado, html.qtd-travado body { overflow: hidden; }
+.qtd-fundo {
+    position: fixed; inset: 0; z-index: 2500;
+    display: flex; align-items: center; justify-content: center; padding: 18px;
+    background: rgba(12, 10, 9, .5); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+    opacity: 0; transition: opacity .25s ease;
+}
+.qtd-fundo[hidden] { display: none; }
+.qtd-fundo.aberto { opacity: 1; }
+.qtd-caixa {
+    position: relative; width: min(100%, 380px); overflow: hidden;
+    background: var(--cf-superficie); color: var(--cf-texto);
+    border: 1px solid var(--cf-borda); border-radius: 30px;
+    box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .5);
+    transform: scale(.55); opacity: 0;
+    transition: transform .5s cubic-bezier(.2, 1.25, .35, 1), opacity .25s ease;
+}
+.qtd-fundo.aberto .qtd-caixa { transform: none; opacity: 1; }
+.qtd-fechar {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 38px; height: 38px; border-radius: 13px; display: grid; place-items: center;
+    background: rgba(255, 255, 255, .85); color: #44403c; font-size: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .12);
+    transition: transform .3s cubic-bezier(.2, 1.4, .4, 1), background .2s, color .2s;
+}
+.qtd-fechar:hover { transform: rotate(90deg); background: #ef4444; color: #fff; }
+.qtd-foto {
+    position: relative; height: 190px; display: grid; place-items: center; overflow: hidden;
+    background: radial-gradient(circle at 50% 62%, #ffffff 0%, #f1f5f9 70%);
+}
+html.cf-escuro .qtd-foto { background: radial-gradient(circle at 50% 62%, #ffffff 0%, #e2e8f0 75%); }
+.qtd-foto img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 14px; }
+.qtd-foto i { display: none; font-size: 64px; color: var(--qtd-tom, #0284c7); opacity: .75; }
+.qtd-foto.sem-foto img { display: none; }
+.qtd-foto.sem-foto i { display: block; }
+.qtd-fundo.aberto .qtd-foto img, .qtd-fundo.aberto .qtd-foto i { animation: qtd-flutuar .7s cubic-bezier(.2, 1.3, .4, 1) backwards .12s; }
+@keyframes qtd-flutuar { from { opacity: 0; transform: translateY(18px) scale(.85) rotate(-4deg); } }
+.qtd-corpo { padding: 18px 20px 20px; text-align: center; }
+.qtd-nome { font-size: 20px; font-weight: 950; line-height: 1.15; color: var(--cf-texto); }
+.qtd-preco { margin-top: 3px; font-size: 13px; font-weight: 700; color: var(--cf-texto-suave); }
+.qtd-seletor { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 16px 0 12px; }
+.qtd-passo {
+    width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center;
+    font-size: 18px; color: var(--cf-texto); background: var(--cf-superficie-2); border: 1px solid var(--cf-borda);
+    transition: transform .15s ease, background .2s, color .2s;
+}
+.qtd-passo:hover:not(:disabled) { background: var(--qtd-tom, var(--cf-marca)); color: #fff; border-color: transparent; }
+.qtd-passo:active:not(:disabled) { transform: scale(.88); }
+.qtd-passo:disabled { opacity: .35; cursor: not-allowed; }
+.qtd-numero { display: block; min-width: 76px; font-size: 52px; font-weight: 950; line-height: 1; color: var(--cf-texto); font-variant-numeric: tabular-nums; }
+.qtd-numero.sobe { animation: qtd-sobe .32s cubic-bezier(.2, 1.4, .4, 1); }
+.qtd-numero.desce { animation: qtd-desce .32s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes qtd-sobe { from { transform: translateY(14px) scale(.8); opacity: .3; } }
+@keyframes qtd-desce { from { transform: translateY(-14px) scale(.8); opacity: .3; } }
+.qtd-atalhos { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.qtd-atalho {
+    min-width: 42px; height: 34px; padding: 0 10px; border-radius: 11px;
+    font-size: 13px; font-weight: 900; color: var(--cf-texto-2);
+    background: var(--cf-superficie-2); border: 1px solid var(--cf-borda);
+    transition: transform .15s ease, background .2s, color .2s;
+}
+.qtd-atalho:hover { transform: translateY(-2px); }
+.qtd-atalho.ativo {
+    background: color-mix(in srgb, var(--qtd-tom, var(--cf-marca)) 14%, transparent);
+    color: var(--qtd-tom, var(--cf-marca)); border-color: var(--qtd-tom, var(--cf-marca));
+}
+.qtd-atalho[hidden] { display: none; }
+.qtd-confirmar {
+    position: relative; width: 100%; height: 56px; border-radius: 18px; overflow: hidden;
+    color: #fff; font-size: 15px; font-weight: 900;
+    background: linear-gradient(135deg, var(--qtd-tom, var(--cf-marca)), color-mix(in srgb, var(--qtd-tom, var(--cf-marca-forte)) 72%, #000));
+    box-shadow: 0 14px 28px -12px var(--qtd-tom, var(--cf-marca));
+    transition: transform .15s ease, background .3s ease, box-shadow .3s ease;
+}
+.qtd-confirmar:hover { transform: translateY(-2px); }
+.qtd-confirmar:active { transform: scale(.98); }
+.qtd-confirmar:focus-visible { outline: 3px solid var(--cf-marca-suave); outline-offset: 3px; }
+.qtd-confirmar-texto, .qtd-feito {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    transition: transform .3s cubic-bezier(.2, 1.2, .4, 1), opacity .2s ease;
+}
+.qtd-feito { justify-content: center; gap: 8px; transform: translateY(100%); opacity: 0; }
+.qtd-fundo.confirmado .qtd-confirmar { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 14px 28px -12px #16a34a; }
+.qtd-fundo.confirmado .qtd-confirmar-texto { transform: translateY(-100%); opacity: 0; }
+.qtd-fundo.confirmado .qtd-feito { transform: none; opacity: 1; }
+.qtd-fundo.confirmado .qtd-feito i { animation: qtd-check .45s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes qtd-check { from { transform: scale(0) rotate(-45deg); } }
+.qtd-dica { display: block; margin-top: 10px; font-size: 10.5px; font-weight: 700; color: var(--cf-texto-suave); }
+@media (hover: none) { .qtd-dica { display: none; } }
+
+/* A foto que voa até o carrinho, com a quantidade. */
+.qtd-voo {
+    position: fixed; z-index: 3000; pointer-events: none;
+    display: grid; place-items: center; border-radius: 22px;
+    background: #fff; box-shadow: 0 18px 40px -10px rgba(0, 0, 0, .45), 0 0 0 3px color-mix(in srgb, var(--qtd-tom, #16a34a) 55%, transparent);
+}
+.qtd-voo img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; padding: 12px; border-radius: inherit; }
+.qtd-voo i { font-size: 54px; color: var(--qtd-tom, #f97316); }
+.qtd-voo b {
+    position: absolute; top: -12px; right: -12px; min-width: 46px; height: 46px; padding: 0 10px;
+    border-radius: 999px; display: grid; place-items: center;
+    background: var(--qtd-tom, #16a34a); color: #fff; font-size: 20px; font-weight: 950;
+    border: 3px solid #fff;
+    box-shadow: 0 8px 20px -6px var(--qtd-tom, #16a34a);
+}
+/* O carrinho dá um pulo quando a bebida chega. */
+.qtd-chegou { animation: qtd-chegou .6s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes qtd-chegou { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@media (max-width: 520px) {
+    .qtd-fundo { align-items: flex-end; padding: 0; }
+    .qtd-caixa { width: 100%; border-radius: 28px 28px 0 0; transform: translateY(100%); }
+    .qtd-corpo { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+    .qtd-foto { height: 170px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .qtd-caixa, .qtd-fundo, .qtd-confirmar-texto, .qtd-feito { transition: none !important; }
+    .qtd-numero.sobe, .qtd-numero.desce, .qtd-chegou, .qtd-fundo.aberto .qtd-foto img, .qtd-fundo.confirmado .qtd-feito i { animation: none !important; }
+}
+
+/* ------------------------------------------------ barras de rolagem
+   Um padrão só no sistema todo: a página, a lista de produtos e o
+   carrinho do caixa, os modais, o estoque e os rankings. Finas,
+   arredondadas e na cor do tema; no Safari ficam na cor da marca ao
+   passar o mouse. Listas que deslizam de lado (filtros, categorias)
+   escondem a barra com .no-scrollbar. */
+:root { --cf-rolagem: color-mix(in srgb, var(--cf-texto-suave) 45%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--cf-rolagem) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--cf-rolagem); border: 2px solid transparent; border-radius: 999px; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--cf-marca); }
+.no-scrollbar, .categoria-scroll { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar, .categoria-scroll::-webkit-scrollbar { display: none; }
+
+/* ------------------------------------------------------------- logo */
+.cf-logo { display: block; height: 100%; width: auto; }
+.g3-logo-img { display: block; height: 100%; width: auto; max-width: 220px; object-fit: contain; }
+.g3-logo { display: inline-flex; align-items: center; gap: 10px; height: 100%; color: inherit; text-decoration: none; }
+.g3-logo-selo {
+    display: grid; place-items: center; height: 100%; aspect-ratio: 1; border-radius: 28%;
+    background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); color: #fff;
+    font-weight: 900; font-size: 17px; letter-spacing: -.04em; box-shadow: 0 8px 18px -8px var(--cf-marca);
+}
+.g3-logo-texto { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
+.g3-logo-texto b { font-weight: 900; font-size: 15px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.g3-logo-texto small { font-size: 9.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; opacity: .55; }
+.g3-carregando-selo {
+    width: 84px; height: 84px; display: grid; place-items: center; border-radius: 26px; color: #fff;
+    font-weight: 900; font-size: 34px; letter-spacing: -.04em;
+    background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte));
+    animation: cf-bater 1.1s ease-in-out infinite;
+}
+.cf-logo-claro { display: none; }
+html.cf-escuro .cf-logo-claro { display: block; }
+html.cf-escuro .cf-logo-escuro { display: none; }
+
+/* ----------------------------------------------- o céu de cada tema */
+.cf-ceu {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.cf-astro {
+    position: absolute;
+    top: -140px;
+    right: -120px;
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity .8s ease, transform .8s ease;
+}
+
+/* SOL: um brilho quente no canto, com raios girando devagar. */
+[data-tema="sol"] .cf-astro-sol { opacity: 1; }
+.cf-astro-sol {
+    background: radial-gradient(circle, rgba(255, 214, 102, .55) 0%, rgba(255, 190, 70, .25) 35%, rgba(255, 180, 60, 0) 68%);
+}
+.cf-astro-sol::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, rgba(255, 200, 80, .10) 0deg 6deg, transparent 6deg 22deg);
+    -webkit-mask: radial-gradient(circle, #000 30%, transparent 70%);
+    mask: radial-gradient(circle, #000 30%, transparent 70%);
+    animation: cf-girar 90s linear infinite;
+}
+
+/* LUA: céu estrelado piscando e a lua crescente no canto. */
+[data-tema="lua"] .cf-astro-lua { opacity: 1; }
+.cf-astro-lua {
+    top: 36px;
+    right: 48px;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle at 35% 35%, #f5f3e8 0%, #d9d6c6 55%, #bdb9a6 100%);
+    box-shadow: 0 0 60px 18px rgba(200, 210, 255, .18);
+    -webkit-mask: radial-gradient(circle at 72% 30%, transparent 44%, #000 45%);
+    mask: radial-gradient(circle at 72% 30%, transparent 44%, #000 45%);
+    opacity: 0;
+}
+.cf-estrelas {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity .8s ease;
+    background-image:
+        radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent),
+        radial-gradient(1px 1px at 90px 120px, #cfd8ff, transparent),
+        radial-gradient(1.5px 1.5px at 160px 60px, #fff, transparent),
+        radial-gradient(1px 1px at 230px 170px, #fff, transparent),
+        radial-gradient(1px 1px at 300px 40px, #dfe6ff, transparent),
+        radial-gradient(1.5px 1.5px at 360px 140px, #fff, transparent);
+    background-size: 400px 220px;
+    animation: cf-piscar 5s ease-in-out infinite alternate;
+}
+[data-tema="lua"] .cf-estrelas { opacity: .55; }
+
+/* ECLIPSE: o disco negro com a coroa vermelha pulsando. */
+[data-tema="eclipse"] .cf-astro-eclipse { opacity: 1; }
+.cf-astro-eclipse {
+    top: 30px;
+    right: 44px;
+    width: 130px;
+    height: 130px;
+    background: #050506;
+    box-shadow:
+        0 0 0 2px rgba(255, 120, 90, .55),
+        0 0 28px 8px rgba(255, 59, 69, .55),
+        0 0 90px 30px rgba(255, 59, 69, .22),
+        0 0 180px 60px rgba(255, 90, 40, .10);
+    animation: cf-coroa 4.5s ease-in-out infinite;
+}
+.cf-astro-eclipse::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff4e6;
+    box-shadow: 0 0 14px 6px rgba(255, 220, 190, .8);
+    animation: cf-diamante 4.5s ease-in-out infinite;
+}
+[data-tema="eclipse"] .cf-ceu::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 90% 0%, rgba(255, 59, 69, .10), transparent 55%);
+}
+
+/* No painel os cartões cobrem a tela quase toda: a lua e o disco do eclipse
+   ficariam espiando pela fresta entre eles. Ficam as estrelas e o brilho. */
+.cf-painel .cf-astro-lua,
+.cf-painel .cf-astro-eclipse { display: none; }
+
+@keyframes cf-girar { to { transform: rotate(360deg); } }
+@keyframes cf-piscar { from { opacity: .35; } to { opacity: .7; } }
+@keyframes cf-coroa {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(255, 120, 90, .5), 0 0 28px 8px rgba(255, 59, 69, .5), 0 0 90px 30px rgba(255, 59, 69, .2), 0 0 180px 60px rgba(255, 90, 40, .08); }
+    50% { box-shadow: 0 0 0 2px rgba(255, 150, 110, .7), 0 0 36px 12px rgba(255, 59, 69, .65), 0 0 110px 40px rgba(255, 59, 69, .28), 0 0 200px 70px rgba(255, 90, 40, .12); }
+}
+@keyframes cf-diamante { 0%, 100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1); } }
+
+@media (max-width: 640px) {
+    .cf-astro-sol { width: 260px; height: 260px; top: -110px; right: -90px; }
+    .cf-astro-lua, .cf-astro-eclipse { width: 70px; height: 70px; top: 90px; right: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cf-astro-sol::before, .cf-estrelas, .cf-astro-eclipse, .cf-astro-eclipse::after { animation: none !important; }
+}
+
+/* ------------------------------------------------- seletor de tema */
+.cf-tema-botao {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cf-superficie-2);
+    color: var(--cf-texto);
+    border: 1px solid var(--cf-borda);
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.cf-tema-botao:hover { transform: translateY(-1px) scale(1.05); box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+.cf-tema-botao i { font-size: 16px; }
+[data-tema="sol"] .cf-tema-botao i { color: #f59e0b; }
+[data-tema="lua"] .cf-tema-botao i { color: #c7d2fe; }
+
+.cf-icone-eclipse {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #050506;
+    box-shadow: 0 0 0 1.5px #ff6b5a, 0 0 8px 2px rgba(255, 59, 69, .8);
+}
+
+.cf-tema-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 230px;
+    padding: 8px;
+    border-radius: 18px;
+    background: var(--cf-superficie);
+    border: 1px solid var(--cf-borda);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+    z-index: 200;
+    transform-origin: top right;
+    animation: cf-menu .18s ease-out;
+}
+@keyframes cf-menu { from { opacity: 0; transform: scale(.92) translateY(-4px); } }
+.cf-tema-opcao {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--cf-texto);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+.cf-tema-opcao small { display: block; font-size: 10px; font-weight: 600; color: var(--cf-texto-suave); }
+.cf-tema-opcao:hover { background: var(--cf-superficie-2); }
+.cf-tema-opcao.ativo { background: var(--cf-marca-suave); }
+.cf-tema-opcao .cf-bolinha {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+}
+.cf-bolinha-sol { background: linear-gradient(135deg, #fff7d6, #ffd166); color: #d97706; }
+.cf-bolinha-lua { background: linear-gradient(135deg, #1e293b, #0a0f1e); color: #e0e7ff; }
+.cf-bolinha-eclipse { background: #000; }
+.cf-bolinha-auto { background: linear-gradient(135deg, #ffd166 0 50%, #0a0f1e 50% 100%); color: #fff; }
+
+/* ------------------------------------------------ tela de carregamento */
+.cf-carregando {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    background: var(--cf-fundo);
+    transition: opacity .45s ease, visibility .45s ease;
+}
+.cf-carregando.sumiu { opacity: 0; visibility: hidden; }
+.cf-carregando-coracao {
+    position: relative;
+    width: 128px;
+    height: 128px;
+    display: grid;
+    place-items: center;
+}
+.cf-coracao-claro { display: none !important; }
+html.cf-escuro .cf-coracao-claro { display: block !important; }
+html.cf-escuro .cf-coracao-escuro { display: none !important; }
+.cf-carregando-coracao img { width: 96px; height: auto; animation: cf-bater 1.1s ease-in-out infinite; }
+.cf-carregando-coracao::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid var(--cf-marca-suave);
+    border-top-color: var(--cf-marca);
+    animation: cf-girar 1s linear infinite;
+}
+.cf-carregando-texto {
+    color: var(--cf-texto-suave);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+}
+.cf-carregando-barra {
+    width: 200px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--cf-superficie-3);
+    overflow: hidden;
+}
+.cf-carregando-barra span {
+    display: block;
+    height: 100%;
+    width: 40%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--cf-marca), #ff8a5c);
+    animation: cf-barra 1.2s ease-in-out infinite;
+}
+@keyframes cf-bater { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.12); } 30% { transform: scale(.98); } 45% { transform: scale(1.08); } }
+@keyframes cf-barra { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+
+/* Barra fina no topo ao trocar de página. */
+.cf-progresso {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    width: 0;
+    z-index: 2000;
+    background: linear-gradient(90deg, var(--cf-marca), #ff9f5a);
+    box-shadow: 0 0 10px var(--cf-marca);
+    transition: width 8s cubic-bezier(.1, .7, .2, 1), opacity .3s ease;
+}
+.cf-progresso.andando { width: 85%; }
+
+/* -------------------------------------------------------------------
+   TEMAS ESCUROS: as utilidades claras do Tailwind usam as cores do tema.
+   ------------------------------------------------------------------- */
+html.cf-escuro .bg-white,
+html.cf-escuro .bg-white\/90,
+html.cf-escuro .bg-white\/80 { background-color: var(--cf-superficie) !important; }
+html.cf-escuro .bg-gray-50,
+html.cf-escuro .bg-slate-50,
+html.cf-escuro .bg-gray-100,
+html.cf-escuro .bg-slate-100 { background-color: var(--cf-superficie-2) !important; }
+html.cf-escuro .bg-gray-200,
+html.cf-escuro .bg-slate-200 { background-color: var(--cf-superficie-3) !important; }
+html.cf-escuro .hover\:bg-gray-50:hover,
+html.cf-escuro .hover\:bg-gray-100:hover,
+html.cf-escuro .hover\:bg-gray-200:hover { background-color: var(--cf-superficie-3) !important; }
+
+html.cf-escuro .text-gray-900,
+html.cf-escuro .text-gray-800,
+html.cf-escuro .text-slate-900,
+html.cf-escuro .text-slate-800,
+html.cf-escuro .text-black { color: var(--cf-texto) !important; }
+html.cf-escuro .text-gray-700,
+html.cf-escuro .text-gray-600,
+html.cf-escuro .text-slate-700,
+html.cf-escuro .text-slate-600 { color: var(--cf-texto-2) !important; }
+html.cf-escuro .text-gray-500,
+html.cf-escuro .text-gray-400,
+html.cf-escuro .text-slate-500,
+html.cf-escuro .text-slate-400 { color: var(--cf-texto-suave) !important; }
+html.cf-escuro .text-gray-300,
+html.cf-escuro .text-gray-200 { color: #4b5563 !important; }
+
+html.cf-escuro .border,
+html.cf-escuro .border-t,
+html.cf-escuro .border-b,
+html.cf-escuro .border-gray-50,
+html.cf-escuro .border-gray-100,
+html.cf-escuro .border-gray-200,
+html.cf-escuro .border-gray-300,
+html.cf-escuro .border-slate-200,
+html.cf-escuro .border-transparent { border-color: var(--cf-borda) !important; }
+html.cf-escuro hr { border-color: var(--cf-borda) !important; }
+
+html.cf-escuro input:not([type="checkbox"]):not([type="radio"]),
+html.cf-escuro textarea,
+html.cf-escuro select {
+    background-color: var(--cf-superficie-2) !important;
+    color: var(--cf-texto) !important;
+    border-color: var(--cf-borda) !important;
+}
+html.cf-escuro input::placeholder,
+html.cf-escuro textarea::placeholder { color: var(--cf-texto-suave) !important; }
+
+/* Tons pastel (bg-*-50/100) viram véus coloridos translúcidos. */
+html.cf-escuro .bg-orange-50, html.cf-escuro .bg-amber-50, html.cf-escuro .bg-yellow-50 { background-color: rgba(251, 146, 60, .10) !important; }
+html.cf-escuro .bg-orange-100, html.cf-escuro .bg-amber-100, html.cf-escuro .bg-yellow-100 { background-color: rgba(251, 146, 60, .18) !important; }
+html.cf-escuro .bg-orange-200 { background-color: rgba(251, 146, 60, .26) !important; }
+html.cf-escuro .bg-green-50, html.cf-escuro .bg-emerald-50, html.cf-escuro .bg-teal-50 { background-color: rgba(16, 185, 129, .10) !important; }
+html.cf-escuro .bg-green-100, html.cf-escuro .bg-emerald-100, html.cf-escuro .bg-teal-100 { background-color: rgba(16, 185, 129, .18) !important; }
+html.cf-escuro .bg-blue-50, html.cf-escuro .bg-sky-50, html.cf-escuro .bg-indigo-50 { background-color: rgba(99, 102, 241, .12) !important; }
+html.cf-escuro .bg-blue-100, html.cf-escuro .bg-sky-100, html.cf-escuro .bg-indigo-100 { background-color: rgba(99, 102, 241, .20) !important; }
+html.cf-escuro .bg-violet-50, html.cf-escuro .bg-purple-50 { background-color: rgba(139, 92, 246, .12) !important; }
+html.cf-escuro .bg-violet-100, html.cf-escuro .bg-purple-100 { background-color: rgba(139, 92, 246, .20) !important; }
+html.cf-escuro .bg-red-50 { background-color: rgba(239, 68, 68, .12) !important; }
+html.cf-escuro .bg-red-100 { background-color: rgba(239, 68, 68, .20) !important; }
+html.cf-escuro [class*="border-orange-1"], html.cf-escuro [class*="border-orange-2"],
+html.cf-escuro [class*="border-amber-1"], html.cf-escuro [class*="border-green-1"],
+html.cf-escuro [class*="border-emerald-1"], html.cf-escuro [class*="border-emerald-2"],
+html.cf-escuro [class*="border-teal-1"], html.cf-escuro [class*="border-blue-1"],
+html.cf-escuro [class*="border-indigo-1"], html.cf-escuro [class*="border-violet-1"],
+html.cf-escuro [class*="border-red-1"] { border-color: rgba(255, 255, 255, .08) !important; }
+html.cf-escuro .from-orange-50, html.cf-escuro .from-indigo-50 { --tw-gradient-from: rgba(251, 146, 60, .10) var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+html.cf-escuro .to-amber-50, html.cf-escuro .to-sky-50 { --tw-gradient-to: rgba(99, 102, 241, .06) var(--tw-gradient-to-position) !important; }
+html.cf-escuro .from-slate-100, html.cf-escuro .via-white, html.cf-escuro .to-blue-50 { --tw-gradient-from: var(--cf-fundo) !important; --tw-gradient-to: var(--cf-fundo) !important; --tw-gradient-stops: var(--cf-fundo), var(--cf-fundo) !important; }
+
+/* Textos coloridos escuros ficam legíveis no fundo escuro. */
+html.cf-escuro .text-orange-600, html.cf-escuro .text-orange-700 { color: #fdba74 !important; }
+html.cf-escuro .text-green-600, html.cf-escuro .text-green-700,
+html.cf-escuro .text-emerald-600, html.cf-escuro .text-emerald-700 { color: #6ee7b7 !important; }
+html.cf-escuro .text-teal-600 { color: #5eead4 !important; }
+html.cf-escuro .text-blue-600, html.cf-escuro .text-blue-700,
+html.cf-escuro .text-indigo-600, html.cf-escuro .text-indigo-700 { color: #a5b4fc !important; }
+html.cf-escuro .text-violet-600, html.cf-escuro .text-purple-700 { color: #c4b5fd !important; }
+html.cf-escuro .text-yellow-700, html.cf-escuro .text-amber-600, html.cf-escuro .text-amber-500 { color: #fcd34d !important; }
+html.cf-escuro .text-red-600, html.cf-escuro .text-red-700 { color: #fca5a5 !important; }
+
+/* Bebidas (azul-céu): cartão e relatório da tela de Pedidos. */
+html.cf-escuro .bg-sky-50 { background-color: rgba(56, 189, 248, .12) !important; }
+html.cf-escuro [class*="border-sky-1"] { border-color: rgba(255, 255, 255, .08) !important; }
+html.cf-escuro .text-sky-500, html.cf-escuro .text-sky-600 { color: #7dd3fc !important; }
+
+html.cf-escuro .shadow-sm, html.cf-escuro .shadow, html.cf-escuro .shadow-lg,
+html.cf-escuro .shadow-xl, html.cf-escuro .shadow-2xl { --tw-shadow-color: rgba(0, 0, 0, .45); }
+
+/* Classes próprias das telas (pedidos, caixa, estoque). */
+html.cf-escuro .modal-caixa { background: var(--cf-superficie) !important; color: var(--cf-texto); }
+html.cf-escuro .btnPeriodo:not(.ativo),
+html.cf-escuro .btnPagamento:not(.ativo),
+html.cf-escuro .paginacao-btn,
+html.cf-escuro .paginacao-numero:not(.paginacao-ativa) { background: var(--cf-superficie-2) !important; color: var(--cf-texto-2) !important; }

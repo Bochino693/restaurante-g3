@@ -1,0 +1,435 @@
+/* =========================================================================
+   CARDÁPIO DO CLIENTE — G3 Bar e Restaurante
+   Um script só (antes eram dois declarando as mesmas variáveis com `let`,
+   e o navegador recusava o segundo inteiro — por isso o botão de adicionar
+   ao carrinho não fazia nada).
+   ========================================================================= */
+(function () {
+    "use strict";
+
+    const CHAVE = "g3_carrinho";
+    const CHAVE_CLIENTE = "g3_cliente";
+    const body = document.body;
+    const LOJA_ABERTA = body.dataset.lojaAberta === "1";
+    const TAXA_ENTREGA = Number(body.dataset.taxaEntrega || 0);
+
+    let catalogo = {};
+    try {
+        catalogo = JSON.parse(document.getElementById("catalogo-json").textContent || "{}");
+    } catch (_) {
+        catalogo = {};
+    }
+
+    const $ = id => document.getElementById(id);
+    const reais = v => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const escapar = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    /* ---------------------------------------------------------- carrinho */
+    function ler() {
+        try {
+            const c = JSON.parse(localStorage.getItem(CHAVE) || "[]");
+            // Só mantém o que ainda existe no cardápio, com o preço de hoje.
+            return Array.isArray(c) ? c.filter(i => catalogo[i.id]).map(i => ({
+                ...i,
+                nome: catalogo[i.id].nome,
+                precoBase: Number(catalogo[i.id].preco)
+            })) : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    let carrinho = ler();
+
+    function salvar() {
+        try { localStorage.setItem(CHAVE, JSON.stringify(carrinho)); } catch (_) { /* privado */ }
+        desenhar();
+    }
+
+    const precoItem = i => i.precoBase + i.adicionais.reduce((s, a) => s + Number(a.preco), 0);
+    const totalItens = () => carrinho.reduce((s, i) => s + precoItem(i) * i.qtd, 0);
+    const unidades = () => carrinho.reduce((s, i) => s + i.qtd, 0);
+
+    function adicionar(id, adicionais = [], qtd = 1, { avisar = true } = {}) {
+        const p = catalogo[id];
+        if (!p) return;
+        if (p.esgotado) { toast(`${p.nome} está esgotado.`, true); return; }
+        const extras = adicionais.map(a => ({ nome: a.nome, preco: Number(a.preco) }))
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+        const chave = id + "|" + extras.map(a => a.nome).join("+");
+        const existente = carrinho.find(i => i.chave === chave);
+        if (existente) {
+            existente.qtd += qtd;
+        } else {
+            carrinho.push({ chave, id: String(id), nome: p.nome, precoBase: Number(p.preco), adicionais: extras, qtd });
+        }
+        salvar();
+        if (avisar) avisarChegada(id, qtd);
+        registrarClique(id);
+    }
+
+    function avisarChegada(id, qtd) {
+        const p = catalogo[id];
+        if (!p) return;
+        toast(`${qtd > 1 ? qtd + "x " : ""}${p.nome} no carrinho!`);
+        const contador = $("cart-count");
+        contador.classList.remove("cf-pulo");
+        void contador.offsetWidth;
+        contador.classList.add("cf-pulo");
+    }
+
+    /* EFEITO DE ENTRAR NA CESTA (core/js/quantidade.js): o item já entrou;
+       a foto voa até a cesta com a cor da categoria e, quando chega, vem o
+       aviso. */
+    const destinosCesta = () => [$("cart-count"), $("barra-carrinho"), document.querySelector('[aria-label="Abrir carrinho"]')];
+
+    function voarParaCesta(card, id, qtd) {
+        const p = catalogo[id];
+        const img = card && card.querySelector("img");
+        const temFoto = !!(img && img.style.display !== "none" && img.complete && img.naturalWidth);
+        if (!p || !window.Quantidade || !window.Quantidade.voar) { avisarChegada(id, qtd); return; }
+        window.Quantidade.voar({
+            de: temFoto ? img : (card || document.body),
+            imagem: temFoto ? (img.currentSrc || img.src) : "",
+            icone: p.bebida ? "fa-bottle-water" : "fa-utensils",
+            rotulo: "+" + qtd,
+            cor: p.cor,
+            destino: destinosCesta(),
+            aoChegar: () => avisarChegada(id, qtd)
+        });
+    }
+
+    function mudarQtd(chave, delta) {
+        const item = carrinho.find(i => i.chave === chave);
+        if (!item) return;
+        item.qtd += delta;
+        if (item.qtd <= 0) carrinho = carrinho.filter(i => i.chave !== chave);
+        salvar();
+    }
+
+    function desenhar() {
+        const n = unidades();
+        const total = totalItens();
+        const contador = $("cart-count");
+        contador.textContent = n;
+        contador.classList.toggle("hidden", !n);
+        contador.classList.toggle("flex", !!n);
+        const barra = $("barra-carrinho");
+        barra.classList.toggle("hidden", !n);
+        barra.classList.toggle("flex", !!n);
+        $("barra-qtd").textContent = n;
+        $("barra-total").textContent = reais(total);
+        // Na entrega, a taxa da casa já entra no total que o cliente vê.
+        const comTaxa = escolha("tipo") === "entrega" ? TAXA_ENTREGA : 0;
+        $("cart-taxa-linha").classList.toggle("hidden", !comTaxa || !n);
+        $("cart-taxa").textContent = reais(comTaxa);
+        $("cart-total").textContent = reais(total + (n ? comTaxa : 0));
+
+        const lista = $("cart-items");
+        if (!carrinho.length) {
+            lista.innerHTML = `
+                <div class="text-center py-10 text-gray-400">
+                    <i class="fas fa-basket-shopping text-4xl mb-3 opacity-40"></i>
+                    <p class="font-bold">Seu carrinho está vazio</p>
+                    <p class="text-xs mt-1">Toque no <b>+</b> dos pratos para adicionar.</p>
+                </div>`;
+        } else {
+            lista.innerHTML = carrinho.map(i => `
+                <div class="flex items-center gap-3 rounded-2xl p-3 bg-gray-50 border border-gray-100">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-bold text-gray-800 text-sm leading-tight">${escapar(i.nome)}</p>
+                        ${i.adicionais.length ? `<p class="text-[11px] text-gray-500 font-semibold mt-0.5">+ ${i.adicionais.map(a => escapar(a.nome)).join(", ")}</p>` : ""}
+                        <p class="cf-preco font-black text-sm mt-1">${reais(precoItem(i) * i.qtd)}</p>
+                    </div>
+                    <div class="flex items-center gap-1 rounded-xl px-1 py-1 bg-white border border-gray-100">
+                        <button type="button" class="w-8 h-8 rounded-lg font-black text-gray-600" data-qtd="-1" data-chave="${escapar(i.chave)}" aria-label="Menos">${i.qtd === 1 ? '<i class="fas fa-trash text-xs text-red-500"></i>' : "−"}</button>
+                        <span class="w-6 text-center font-black text-gray-800 text-sm">${i.qtd}</span>
+                        <button type="button" class="w-8 h-8 rounded-lg font-black text-gray-600" data-qtd="1" data-chave="${escapar(i.chave)}" aria-label="Mais">+</button>
+                    </div>
+                </div>`).join("");
+        }
+        $("cart-form").classList.toggle("hidden", !carrinho.length);
+        const btn = $("btn-enviar");
+        btn.disabled = !carrinho.length || !LOJA_ABERTA;
+        btn.style.opacity = btn.disabled ? ".55" : "1";
+        $("btn-enviar-texto").textContent = !LOJA_ABERTA
+            ? `Fechado agora · ${body.dataset.lojaDetalhe}`
+            : "Fazer pedido";
+    }
+
+    /* ---------------------------------------------------- abrir/fechar */
+    function abrirCarrinho() {
+        $("cart-fundo").classList.remove("hidden");
+        $("cart-drawer").classList.remove("translate-y-full");
+        document.documentElement.style.overflow = "hidden";
+    }
+
+    function fecharCarrinho() {
+        $("cart-fundo").classList.add("hidden");
+        $("cart-drawer").classList.add("translate-y-full");
+        document.documentElement.style.overflow = "";
+    }
+
+    /* ------------------------------------------------------ adicionais */
+    let modal = { id: null, lista: [], qtd: 1, card: null };
+
+    async function abrirAdicionais(id, card) {
+        const p = catalogo[id];
+        modal = { id, lista: [], qtd: 1, card: card || null };
+        $("modal-produto-nome").textContent = p.nome;
+        $("modal-qtd").textContent = "1";
+        const lista = $("lista-adicionais");
+        lista.innerHTML = '<p class="text-sm text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando opções...</p>';
+        const m = $("modal-adicionais");
+        m.classList.remove("hidden");
+        m.classList.add("flex");
+        atualizarTotalModal();
+        try {
+            const r = await fetch(`/produto/${encodeURIComponent(id)}/adicionais/`, { headers: { Accept: "application/json" } });
+            if (!r.ok) throw new Error();
+            // o refri da marmita só aparece se estiver no cardápio
+            modal.lista = (await r.json()).filter(a => !a.produto_id || catalogo[a.produto_id]);
+            // A bebida (o refri) vem primeiro do servidor, com foto e a cor azul.
+            lista.innerHTML = modal.lista.length ? modal.lista.map((a, i) => `
+                <label class="cf-add flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${a.bebida ? "cf-add-bebida" : "bg-gray-50 border-gray-100"}"${a.cor ? ` style="--tom:${escapar(a.cor)}"` : ""}>
+                    ${a.imagem ? `<span class="cf-add-foto"><img src="${escapar(a.imagem)}" alt="" decoding="async"></span>` : ""}
+                    <span class="cf-add-texto text-sm font-bold text-gray-700">
+                        ${a.bebida ? '<em class="cf-add-selo"><i class="fas fa-glass-water"></i> Bebida</em>' : ""}
+                        ${escapar(a.nome)}
+                        <span class="cf-preco text-xs font-black ml-1">+ ${reais(a.preco)}</span></span>
+                    <input type="checkbox" value="${i}" class="w-5 h-5 accent-red-500">
+                </label>`).join("") : '<p class="text-sm text-gray-400 py-4">Este item não tem adicionais.</p>';
+        } catch (_) {
+            lista.innerHTML = '<p class="text-sm text-red-500 py-4">Não foi possível carregar os adicionais. Você pode adicionar o item sem eles.</p>';
+        }
+    }
+
+    function selecionados() {
+        return Array.from(document.querySelectorAll("#lista-adicionais input:checked"))
+            .map(c => modal.lista[Number(c.value)]).filter(Boolean);
+    }
+
+    function atualizarTotalModal() {
+        const p = catalogo[modal.id];
+        if (!p) return;
+        const extras = selecionados().reduce((s, a) => s + Number(a.preco), 0);
+        $("modal-total").textContent = reais((Number(p.preco) + extras) * modal.qtd);
+    }
+
+    function fecharAdicionais() {
+        const m = $("modal-adicionais");
+        m.classList.add("hidden");
+        m.classList.remove("flex");
+    }
+
+    /* ------------------------------------------- quantidade (bebidas)
+       Bebida abre o modal de quantidade (core/js/quantidade.js): escolhe
+       quantas, confirma e a foto voa até a cesta. */
+    function abrirQuantidade(id, elemento) {
+        const p = catalogo[id];
+        const card = elemento.closest(".produto-card");
+        const img = card && card.querySelector("img");
+        let quantas = 1;
+        window.Quantidade.abrir({
+            nome: p.nome,
+            preco: Number(p.preco),
+            imagem: img && img.style.display !== "none" ? (img.currentSrc || img.src) : (p.imagem || ""),
+            cor: p.cor,
+            max: 20,
+            origem: card || elemento,
+            destino: destinosCesta(),
+            aoConfirmar: qtd => { quantas = qtd; adicionar(id, [], qtd, { avisar: false }); },
+            aoChegar: () => avisarChegada(id, quantas)
+        });
+    }
+
+    const ehBebidaSimples = id => !!(catalogo[id] && catalogo[id].bebida && !catalogo[id].tem_adicionais && window.Quantidade);
+
+    /* ---------------------------------------------------------- envio */
+    function escolha(grupo) {
+        const ativo = document.querySelector(`[data-grupo="${grupo}"] .cf-escolha.ativo`);
+        return ativo ? ativo.dataset.valor : "";
+    }
+
+    let enviando = false;
+
+    async function enviar() {
+        if (!LOJA_ABERTA) {
+            toast(`Estamos fechados · ${body.dataset.lojaDetalhe}`, true);
+            return;
+        }
+        if (!carrinho.length || enviando) return;
+        const nome = $("cf-nome").value.trim();
+        const telefone = $("cf-telefone").value.trim();
+        const tipo = escolha("tipo") || "retirada";
+        const rua = $("cf-rua").value.trim();
+        const numero = $("cf-numero").value.trim();
+        if (!nome) { $("cf-nome").focus(); toast("Informe seu nome.", true); return; }
+        if (telefone.replace(/\D/g, "").length < 10) { $("cf-telefone").focus(); toast("Informe seu telefone com DDD.", true); return; }
+        if (tipo === "entrega" && (!rua || !numero)) {
+            (rua ? $("cf-numero") : $("cf-rua")).focus();
+            toast("Informe rua e número para a entrega.", true);
+            return;
+        }
+        const pagamento = escolha("pagamento");
+        const complemento = $("cf-complemento").value.trim();
+
+        try {
+            localStorage.setItem(CHAVE_CLIENTE, JSON.stringify({ nome, telefone, rua, numero, complemento }));
+        } catch (_) { /* ok */ }
+
+        // O pedido fica gravado na casa (preço e estoque conferidos lá) e o
+        // cliente vai para a tela de acompanhamento.
+        enviando = true;
+        const botao = $("btn-enviar");
+        botao.disabled = true;
+        $("btn-enviar-texto").textContent = "Enviando o pedido...";
+        try {
+            const resposta = await fetch("/api/pedido-online/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": body.dataset.csrf || "" },
+                body: JSON.stringify({
+                    nome, telefone, tipo, rua, numero, complemento, pagamento,
+                    troco: pagamento === "Dinheiro" ? $("cf-troco").value.trim() : "",
+                    obs: $("cf-obs").value.trim(),
+                    carrinho: carrinho.map(i => ({ id: i.id, qtd: i.qtd, adicionais: i.adicionais.map(a => ({ nome: a.nome })) })),
+                }),
+            });
+            const dados = await resposta.json().catch(() => ({}));
+            if (!resposta.ok || !dados.success) throw new Error(dados.message || "Não foi possível enviar o pedido.");
+            carrinho = [];
+            try { localStorage.setItem(CHAVE, "[]"); } catch (_) { /* ok */ }
+            try {
+                const meus = JSON.parse(localStorage.getItem("g3_meus_pedidos") || "[]");
+                meus.unshift({ id: dados.pedido_id, url: dados.acompanhar, em: Date.now() });
+                localStorage.setItem("g3_meus_pedidos", JSON.stringify(meus.slice(0, 5)));
+            } catch (_) { /* ok */ }
+            window.location.href = dados.acompanhar;
+        } catch (erro) {
+            toast(erro.message || "Falha de conexão. Tente de novo.", true);
+            enviando = false;
+            desenhar();
+        }
+    }
+
+    /* ----------------------------------------------------------- extras */
+    let toastTimer = null;
+    function toast(msg, erro) {
+        const t = $("toast");
+        $("toast-texto").textContent = msg;
+        t.style.background = erro ? "#dc2626" : "#16a34a";
+        t.querySelector("i").className = erro ? "fas fa-circle-exclamation" : "fas fa-check-circle";
+        t.classList.remove("escondido");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.classList.add("escondido"), 2200);
+    }
+
+    // O interesse do cliente vira o gráfico "mais clicados" das estatísticas.
+    const clicados = new Set();
+    function registrarClique(id) {
+        if (clicados.has(id)) return;
+        clicados.add(id);
+        const url = `/api/clique/${encodeURIComponent(id)}/`;
+        if (navigator.sendBeacon) navigator.sendBeacon(url);
+        else fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+    }
+
+    function filtrar(categoria) {
+        document.querySelectorAll(".categoria-btn").forEach(b => b.classList.toggle("ativo", b.dataset.categoria === categoria));
+        document.querySelectorAll(".cardapio-secao").forEach(s => {
+            s.style.display = categoria === "all" || s.dataset.secao === categoria ? "" : "none";
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function buscar(termo) {
+        termo = termo.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        let achou = 0;
+        document.querySelectorAll(".produto-card").forEach(card => {
+            const nome = (card.dataset.nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+            const ok = !termo || nome.includes(termo) || (card.dataset.codigo || "").includes(termo);
+            card.style.display = ok ? "" : "none";
+            if (ok) achou++;
+        });
+        document.querySelectorAll(".cardapio-secao").forEach(s => {
+            const visivel = Array.from(s.querySelectorAll(".produto-card")).some(c => c.style.display !== "none");
+            s.style.display = visivel ? "" : "none";
+        });
+        $("busca-vazia").classList.toggle("hidden", !!achou || !termo);
+    }
+
+    /* ----------------------------------------------------------- eventos */
+    document.addEventListener("click", e => {
+        const add = e.target.closest(".btn-add");
+        if (add) {
+            const card = add.closest(".produto-card");
+            const id = card.dataset.id;
+            if (catalogo[id] && catalogo[id].esgotado) { toast(`${catalogo[id].nome} está esgotado.`, true); return; }
+            if (catalogo[id] && catalogo[id].tem_adicionais) abrirAdicionais(id, card);
+            else if (ehBebidaSimples(id)) abrirQuantidade(id, add);
+            else {
+                // marmitas e demais itens: entra na hora e a foto voa até a cesta
+                adicionar(id, [], 1, { avisar: false });
+                voarParaCesta(card, id, 1);
+            }
+            return;
+        }
+        // Tocar em qualquer parte do card de uma bebida também abre o modal.
+        const cardBebida = e.target.closest(".produto-card[data-bebida]");
+        if (cardBebida && ehBebidaSimples(cardBebida.dataset.id) && !catalogo[cardBebida.dataset.id].esgotado) {
+            abrirQuantidade(cardBebida.dataset.id, cardBebida);
+            return;
+        }
+        const qtd = e.target.closest("[data-qtd]");
+        if (qtd) { mudarQtd(qtd.dataset.chave, Number(qtd.dataset.qtd)); return; }
+        const cat = e.target.closest(".categoria-btn");
+        if (cat) { filtrar(cat.dataset.categoria); return; }
+        const op = e.target.closest(".cf-escolha");
+        if (op) {
+            op.parentElement.querySelectorAll(".cf-escolha").forEach(b => b.classList.toggle("ativo", b === op));
+            if (op.parentElement.dataset.grupo === "tipo") { $("cf-endereco").classList.toggle("hidden", op.dataset.valor !== "entrega"); desenhar(); }
+            if (op.parentElement.dataset.grupo === "pagamento") $("cf-troco").classList.toggle("hidden", op.dataset.valor !== "Dinheiro");
+            return;
+        }
+        if (e.target.id === "modal-adicionais") fecharAdicionais();
+    });
+    document.addEventListener("change", e => { if (e.target.closest("#lista-adicionais")) atualizarTotalModal(); });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") { fecharAdicionais(); fecharCarrinho(); }
+    });
+    $("busca").addEventListener("input", e => buscar(e.target.value));
+
+    // Os dados do cliente voltam preenchidos na próxima visita.
+    try {
+        const c = JSON.parse(localStorage.getItem(CHAVE_CLIENTE) || "{}");
+        if (c.nome) $("cf-nome").value = c.nome;
+        if (c.telefone) $("cf-telefone").value = c.telefone;
+        if (c.rua) $("cf-rua").value = c.rua;
+        if (c.numero) $("cf-numero").value = c.numero;
+        if (c.complemento) $("cf-complemento").value = c.complemento;
+    } catch (_) { /* ok */ }
+
+    window.Cardapio = {
+        abrirCarrinho,
+        fecharCarrinho,
+        fecharAdicionais,
+        enviar,
+        qtdModal(d) {
+            modal.qtd = Math.max(1, Math.min(20, modal.qtd + d));
+            $("modal-qtd").textContent = modal.qtd;
+            atualizarTotalModal();
+        },
+        confirmarAdicionais() {
+            const { id, qtd, card } = modal;
+            const escolhidos = selecionados();
+            adicionar(id, escolhidos.filter(a => !a.produto_id), qtd, { avisar: false });
+            // O refri da marmita é um produto: vai para a cesta na própria
+            // linha, um por marmita.
+            escolhidos.filter(a => a.produto_id).forEach(a => adicionar(String(a.produto_id), [], qtd, { avisar: false }));
+            fecharAdicionais();
+            voarParaCesta(card, id, qtd);
+        }
+    };
+
+    desenhar();
+})();

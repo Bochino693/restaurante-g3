@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Dados da casa{% endblock %}
+
+{% block content %}
+<div class="g-pagina" style="max-width: 760px">
+    <header class="g-cabeca">
+        <div>
+            <h1><i class="fas fa-store"></i> Dados da casa</h1>
+            <p>Nome, contato, entrega e pedidos online. Aparecem no cardápio, na notinha e no acompanhamento.</p>
+        </div>
+        <a class="g-btn" href="{% url 'cardapio' %}" target="_blank" rel="noopener"><i class="fas fa-mobile-screen"></i> Ver cardápio</a>
+    </header>
+
+    {% for message in messages %}<div class="g-aviso{% if message.tags == 'error' %} erro{% endif %}">{{ message }}</div>{% endfor %}
+    {% if form.errors %}<div class="g-aviso erro">Confira os campos: {% for campo, erros in form.errors.items %}{{ campo }} ({{ erros|join:" " }}){% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="e-painel g-form">
+        {% csrf_token %}
+        <div class="g-campo largo"><label for="id_nome">Nome da casa</label><input id="id_nome" name="nome" maxlength="80" required value="{{ form.nome.value|default:'' }}"></div>
+        <div class="g-campo largo"><label for="id_slogan">Frase do cardápio</label><input id="id_slogan" name="slogan" maxlength="120" value="{{ form.slogan.value|default:'' }}"></div>
+        <div class="g-campo largo">
+            <label for="id_logo">Logo (opcional)</label>
+            <div class="g-foto-area">
+                <div class="g-foto-previa">{% if form.instance.logo %}<img src="{{ form.instance.logo.url }}" alt="" style="object-fit: contain">{% else %}<i class="fas fa-image"></i>{% endif %}</div>
+                <div><input id="id_logo" type="file" name="logo" accept="image/*">
+                    <span class="dica">Sem logo, o sistema usa o selo "G3" com o nome da casa.</span></div>
+            </div>
+        </div>
+
+        <div class="g-secao"><i class="fas fa-phone"></i> Contato e endereço</div>
+        <div class="g-campo"><label for="id_whatsapp">WhatsApp (55 + DDD + número)</label><input id="id_whatsapp" name="whatsapp" inputmode="tel" maxlength="20" placeholder="5511999999999" value="{{ form.whatsapp.value|default:'' }}"></div>
+        <div class="g-campo"><label for="id_telefone">Telefone</label><input id="id_telefone" name="telefone" maxlength="20" value="{{ form.telefone.value|default:'' }}"></div>
+        <div class="g-campo"><label for="id_instagram">Instagram</label><input id="id_instagram" name="instagram" maxlength="60" placeholder="barrestauranteg3" value="{{ form.instagram.value|default:'' }}"></div>
+        <div class="g-campo"><label for="id_cidade">Cidade / UF</label><input id="id_cidade" name="cidade" maxlength="80" placeholder="Ex.: São Paulo - SP" value="{{ form.cidade.value|default:'' }}"><span class="dica">Ajuda o mapa a achar o endereço do cliente.</span></div>
+        <div class="g-campo largo"><label for="id_endereco">Endereço da casa</label><input id="id_endereco" name="endereco" maxlength="180" placeholder="Rua, número, bairro" value="{{ form.endereco.value|default:'' }}"></div>
+
+        <div class="g-secao"><i class="fas fa-motorcycle"></i> Pedidos online e entrega</div>
+        <label class="g-liga"><input type="checkbox" name="aceita_pedidos_online" {% if form.aceita_pedidos_online.value %}checked{% endif %}> Receber pedidos online</label>
+        <label class="g-liga"><input type="checkbox" name="aceita_entrega" {% if form.aceita_entrega.value %}checked{% endif %}> Fazer entrega</label>
+        <div class="g-campo"><label for="id_taxa_entrega">Taxa de entrega (R$)</label><input id="id_taxa_entrega" name="taxa_entrega" inputmode="decimal" value="{{ form.taxa_entrega.value|default:'0' }}"></div>
+        <div class="g-campo"><label for="id_pedido_minimo">Pedido mínimo (R$)</label><input id="id_pedido_minimo" name="pedido_minimo" inputmode="decimal" value="{{ form.pedido_minimo.value|default:'0' }}"></div>
+        <div class="g-campo"><label for="id_tempo">Tempo médio até ficar pronto (min)</label><input id="id_tempo" name="tempo_preparo_min" inputmode="numeric" value="{{ form.tempo_preparo_min.value|default:'40' }}"><span class="dica">Vira a previsão que o cliente vê.</span></div>
+        <div class="g-campo"><span class="g-rotulo">Horário de funcionamento</span><input value="{{ horario }}" disabled><span class="dica">Definido nas variáveis LOJA_DIAS, LOJA_ABRE e LOJA_FECHA.</span></div>
+
+        <div class="g-rodape"><button type="submit" class="g-btn g-btn-marca"><i class="fas fa-check"></i> Salvar</button></div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br" data-tema="sol">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar · {{ config_loja.nome }}</title>
+    {% include "_tema_head.html" %}
+</head>
+<body class="min-h-screen flex items-center justify-center px-4 py-10">
+{% include "_ceu.html" %}
+
+    <div class="absolute top-4 right-4">
+        <div class="relative"><button type="button" class="cf-tema-botao" data-cf-tema-botao aria-label="Escolher tema"></button></div>
+    </div>
+
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="h-20 flex justify-center">{% include "_logo.html" %}</div>
+            <p class="text-sm text-gray-500 mt-4">Acesse o painel com seu usuário ou e-mail</p>
+        </div>
+
+        <div class="bg-white rounded-[2rem] shadow-2xl border border-gray-100 p-8">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center text-2xl shadow-sm"
+                 style="background: var(--cf-marca-suave); color: var(--cf-marca)">
+                <i class="fas fa-user-lock"></i>
+            </div>
+
+            {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for message in messages %}
+                        <div class="rounded-2xl px-4 py-3 text-sm font-semibold
+                            {% if message.tags == 'error' %}
+                                bg-red-50 text-red-600 border border-red-100
+                            {% else %}
+                                bg-green-50 text-green-600 border border-green-100
+                            {% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        Usuário ou e-mail
+                    </label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                            <i class="fas fa-user"></i>
+                        </span>
+                        <input
+                            type="text"
+                            name="identificador"
+                            placeholder="Digite seu usuário ou e-mail"
+                            class="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none transition-all"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        Senha
+                    </label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                            <i class="fas fa-lock"></i>
+                        </span>
+                        <input
+                            type="password"
+                            name="senha"
+                            placeholder="Digite sua senha"
+                            class="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none transition-all"
+                            id="senha"
+                            required
+                        >
+                        <button
+                            type="button"
+                            onclick="toggleSenha()"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                            <i id="icone-senha" class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full text-white py-4 rounded-2xl font-black uppercase tracking-wide shadow-xl active:scale-[0.98] hover:brightness-110 transition-all"
+                    style="background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); box-shadow: 0 14px 30px rgba(227, 53, 61, .30)"
+                >
+                    Entrar no painel
+                </button>
+            </form>
+        </div>
+
+        <p class="text-center text-xs text-gray-400 mt-6">
+            Sistema interno · {{ config_loja.nome }}
+        </p>
+    </div>
+
+    <script>
+        function toggleSenha() {
+            const input = document.getElementById("senha");
+            const icone = document.getElementById("icone-senha");
+
+            if (input.type === "password") {
+                input.type = "text";
+                icone.classList.remove("fa-eye");
+                icone.classList.add("fa-eye-slash");
+            } else {
+                input.type = "password";
+                icone.classList.remove("fa-eye-slash");
+                icone.classList.add("fa-eye");
+            }
+        }
+    </script>
+
+</body>
+</html>

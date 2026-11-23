@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% block title %}Estoque{% endblock %}
+
+{% block content %}
+<div class="g-pagina">
+    <header class="g-cabeca">
+        <div>
+            <h1><i class="fas fa-boxes-stacked"></i> Estoque</h1>
+            <p>A venda dá baixa sozinha (a dose tira a fração da garrafa). Aqui você lança compras, perdas e contagens.</p>
+        </div>
+        <div class="g-acoes">
+            <a class="g-btn" href="{% url 'produtos' %}"><i class="fas fa-martini-glass-citrus"></i> Produtos</a>
+            <button type="button" class="g-btn g-btn-marca" onclick="Estoque.abrir('', 'ENTRADA')"><i class="fas fa-truck-ramp-box"></i> Lançar compra</button>
+        </div>
+    </header>
+
+    <section class="g-kpis">
+        <div class="g-kpi"><i class="fas fa-cubes"></i><div><span>Itens controlados</span><strong>{{ qtd_itens }}</strong></div></div>
+        <div class="g-kpi {% if qtd_baixo %}alerta{% else %}bom{% endif %}"><i class="fas fa-triangle-exclamation"></i><div><span>Estoque baixo</span><strong>{{ qtd_baixo }}</strong></div></div>
+        <div class="g-kpi {% if qtd_zerado %}perigo{% else %}bom{% endif %}"><i class="fas fa-circle-xmark"></i><div><span>Zerados</span><strong>{{ qtd_zerado }}</strong></div></div>
+        <div class="g-kpi bom"><i class="fas fa-sack-dollar"></i><div><span>Valor em estoque</span><strong>R$ {{ valor_total }}</strong></div></div>
+        <div class="g-kpi"><i class="fas fa-wine-glass-empty"></i><div><span>Perdas (30 dias)</span><strong>R$ {{ perdas_30d }}</strong></div></div>
+    </section>
+
+    <div class="e-layout">
+        <section class="e-painel">
+            <div class="g-filtros" style="margin-bottom: 4px">
+                <div class="g-busca"><i class="fas fa-magnifying-glass"></i><input id="eBusca" type="search" placeholder="Buscar no estoque..." autocomplete="off"></div>
+                <div class="g-chips" id="eFiltros">
+                    <button type="button" class="g-chip ativo" data-f="">Todos</button>
+                    <button type="button" class="g-chip" data-f="baixo">Baixo</button>
+                    <button type="button" class="g-chip" data-f="zerado">Zerado</button>
+                </div>
+            </div>
+
+            {% for l in linhas %}
+            <div class="e-linha {{ l.produto.situacao_estoque }}" data-busca="{{ l.produto.nome_produto|lower }}" data-sit="{{ l.produto.situacao_estoque }}">
+                <div class="e-foto">{% if l.produto.image_produto %}<img src="{{ l.produto.image_produto.url }}" alt="" loading="lazy">{% else %}<i class="fas fa-wine-bottle"></i>{% endif %}</div>
+                <div style="min-width: 0">
+                    <div class="e-nome">{{ l.produto.nome_produto }}
+                        {% if l.produto.situacao_estoque != 'ok' %}<span class="e-etiqueta {{ l.produto.situacao_estoque }}">{{ l.produto.situacao_estoque }}</span>{% endif %}
+                    </div>
+                    <div class="e-sub">{{ l.produto.categoria.nome_categoria }} · mínimo {{ l.minimo }} · R$ {{ l.valor }} parado</div>
+                    {% for d in l.doses %}<span class="e-etiqueta dose" title="{{ d.fracoes }} doses por unidade"><i class="fas fa-whiskey-glass"></i> {{ d.nome }}: rende {{ d.rende }}</span> {% endfor %}
+                    <div class="e-barra"><span style="width: {{ l.pct }}%"></span></div>
+                </div>
+                <div class="e-direita">
+                    <div class="e-saldo"><b>{{ l.saldo }}</b><small>{{ l.produto.get_unidade_display }}</small></div>
+                    <div class="e-botoes">
+                        <button type="button" class="g-btn g-btn-mini" title="Lançar compra" onclick="Estoque.abrir('{{ l.produto.id }}', 'ENTRADA')"><i class="fas fa-plus"></i></button>
+                        <button type="button" class="g-btn g-btn-mini" title="Contagem / perda" onclick="Estoque.abrir('{{ l.produto.id }}', 'AJUSTE')"><i class="fas fa-sliders"></i></button>
+                        <button type="button" class="g-btn g-btn-mini" title="Histórico" onclick="Estoque.historico('{{ l.produto.id }}')"><i class="fas fa-clock-rotate-left"></i></button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-vazio"><i class="fas fa-box-open"></i>
+                Nenhum produto com estoque controlado.<br>
+                Em <a href="{% url 'produtos' %}" style="color: var(--cf-marca); font-weight: 900">Produtos</a>, abra o item e escolha "Estoque próprio".
+            </div>
+            {% endfor %}
+            {% if sem_controle and linhas %}
+            <p class="e-sub" style="margin-top: 12px"><i class="fas fa-circle-info"></i> {{ sem_controle }} produto{{ sem_controle|pluralize }} do cardápio não controla{{ sem_controle|pluralize:"m" }} estoque (pratos feitos na hora, por exemplo).</p>
+            {% endif %}
+        </section>
+
+        <div style="display: flex; flex-direction: column; gap: 16px">
+            <section class="e-painel">
+                <h2><i class="fas fa-chart-column"></i> Mais saíram (30 dias)</h2>
+                <div class="e-grafico"><canvas id="graficoSaidas"></canvas></div>
+            </section>
+            <section class="e-painel">
+                <h2><i class="fas fa-chart-pie"></i> Situação</h2>
+                <div class="e-grafico" style="height: 190px"><canvas id="graficoSituacao"></canvas></div>
+            </section>
+            <section class="e-painel">
+                <h2><i class="fas fa-clock-rotate-left"></i> Últimos movimentos</h2>
+                {% for m in movimentos %}
+                <div class="e-mov {{ m.tipo }}">
+                    <i class="fas {% if m.tipo == 'ENTRADA' %}fa-arrow-down{% elif m.tipo == 'VENDA' %}fa-cash-register{% elif m.tipo == 'PERDA' %}fa-wine-glass-empty{% elif m.tipo == 'ESTORNO' %}fa-rotate-left{% else %}fa-sliders{% endif %}"></i>
+                    <div><b>{{ m.produto.nome_produto }}</b><small>{{ m.get_tipo_display }} · {{ m.criado_em|date:"d/m H:i" }}{% if m.observacao %} · {{ m.observacao }}{% endif %}</small></div>
+                    <span class="q">{% if m.quantidade > 0 %}+{% endif %}{{ m.quantidade|floatformat:"-3" }}</span>
+                </div>
+                {% empty %}
+                <p class="e-sub">Nada movimentado ainda.</p>
+                {% endfor %}
+            </section>
+        </div>
+    </div>
+</div>
+
+<div class="g-modal" id="eModal" hidden>
+    <div class="g-modal-caixa" role="dialog" aria-modal="true" aria-labelledby="eTitulo" style="max-width: 520px">
+        <div class="g-modal-topo">
+            <h2 id="eTitulo">Movimentar estoque</h2>
+            <button type="button" class="g-fechar" onclick="Estoque.fechar()" aria-label="Fechar"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="eForm" class="g-form">
+            {% csrf_token %}
+            <input type="hidden" name="tipo" value="ENTRADA">
+            <div class="g-tipos" id="eTipos">
+                <button type="button" class="g-tipo ativo" data-tipo="ENTRADA"><i class="fas fa-truck-ramp-box"></i>Compra<br><small>entrou mercadoria</small></button>
+                <button type="button" class="g-tipo" data-tipo="AJUSTE"><i class="fas fa-clipboard-check"></i>Contagem<br><small>acertar o saldo</small></button>
+                <button type="button" class="g-tipo" data-tipo="PERDA"><i class="fas fa-wine-glass-empty"></i>Perda<br><small>quebra, vencido</small></button>
+            </div>
+            <div class="g-campo largo"><label for="eProduto">Produto</label>
+                <select id="eProduto" name="produto" required>
+                    <option value="">Escolha...</option>
+                    {% for l in linhas %}<option value="{{ l.produto.id }}" data-saldo="{{ l.saldo }}" data-custo="{{ l.produto.custo|stringformat:'.2f' }}">{{ l.produto.nome_produto }} (tem {{ l.saldo }})</option>{% endfor %}
+                </select></div>
+            <div class="g-campo"><label for="eQtd" id="eQtdRotulo">Quantidade que entrou</label><input id="eQtd" name="quantidade" inputmode="decimal" required placeholder="0"></div>
+            <div class="g-campo" data-so="ENTRADA"><label for="eCusto">Custo por unidade (R$)</label><input id="eCusto" name="custo" inputmode="decimal" placeholder="0,00"></div>
+            <div class="g-campo" data-so="ENTRADA"><label for="eVal">Validade (opcional)</label><input id="eVal" name="validade" type="date"></div>
+            <div class="g-campo largo"><label for="eObs">Observação</label><input id="eObs" name="observacao" maxlength="200" placeholder="Fornecedor, nota, motivo..."></div>
+            <div class="g-erro" id="eErro" hidden></div>
+            <div class="g-rodape"><button type="submit" class="g-btn g-btn-marca" id="eSalvar"><i class="fas fa-check"></i> Confirmar</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="g-modal" id="hModal" hidden>
+    <div class="g-modal-caixa" role="dialog" aria-modal="true" style="max-width: 520px">
+        <div class="g-modal-topo">
+            <h2 id="hTitulo">Histórico</h2>
+            <button type="button" class="g-fechar" onclick="document.getElementById('hModal').hidden = true" aria-label="Fechar"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="hLista"></div>
+    </div>
+</div>
+
+{{ grafico_saidas|json_script:"grafico-saidas" }}
+{{ grafico_situacao|json_script:"grafico-situacao" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+<script>
+const Estoque = (function () {
+    const $ = id => document.getElementById(id);
+    const form = $("eForm"), modal = $("eModal");
+    const ROTULOS = { ENTRADA: "Quantidade que entrou", AJUSTE: "Quanto tem agora (contado)", PERDA: "Quantidade perdida" };
+
+    function tipo(t) {
+        form.elements.tipo.value = t;
+        document.querySelectorAll("#eTipos .g-tipo").forEach(b => b.classList.toggle("ativo", b.dataset.tipo === t));
+        form.querySelectorAll("[data-so]").forEach(c => { c.hidden = c.dataset.so !== t; });
+        $("eQtdRotulo").textContent = ROTULOS[t];
+    }
+    function abrir(produto, t) {
+        form.reset();
+        $("eErro").hidden = true;
+        $("eProduto").value = produto || "";
+        tipo(t || "ENTRADA");
+        preencherCusto();
+        modal.hidden = false;
+        (produto ? $("eQtd") : $("eProduto")).focus();
+    }
+    function fechar() { modal.hidden = true; }
+    function preencherCusto() {
+        const op = $("eProduto").selectedOptions[0];
+        $("eCusto").value = op && op.dataset.custo && Number(op.dataset.custo) ? op.dataset.custo.replace(".", ",") : "";
+    }
+    $("eProduto").addEventListener("change", preencherCusto);
+    $("eTipos").addEventListener("click", e => { const b = e.target.closest(".g-tipo"); if (b) tipo(b.dataset.tipo); });
+    modal.addEventListener("click", e => { if (e.target === modal) fechar(); });
+    $("hModal").addEventListener("click", e => { if (e.target === $("hModal")) $("hModal").hidden = true; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") { fechar(); $("hModal").hidden = true; } });
+
+    form.addEventListener("submit", async e => {
+        e.preventDefault();
+        $("eSalvar").disabled = true;
+        try {
+            const r = await fetch("{% url 'estoque' %}", { method: "POST", body: new FormData(form) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.ok) { $("eErro").textContent = d.erro || "Não foi possível lançar."; $("eErro").hidden = false; return; }
+            location.reload();
+        } catch (_) { $("eErro").textContent = "Falha de conexão."; $("eErro").hidden = false; }
+        finally { $("eSalvar").disabled = false; }
+    });
+
+    async function historico(id) {
+        $("hLista").textContent = "Carregando...";
+        $("hModal").hidden = false;
+        const d = await fetch(`/estoque/historico/${id}/`).then(r => r.json()).catch(() => null);
+        if (!d) { $("hLista").textContent = "Não foi possível carregar."; return; }
+        $("hTitulo").textContent = `${d.produto} · saldo ${d.saldo}`;
+        $("hLista").textContent = d.movimentos.length ? "" : "Nenhum movimento ainda.";
+        d.movimentos.forEach(m => {
+            const linha = document.createElement("div");
+            linha.className = "e-mov " + m.tipo;
+            const icone = document.createElement("i"); icone.className = "fas fa-right-left";
+            const meio = document.createElement("div");
+            const b = document.createElement("b"); b.textContent = m.tipo_label;
+            const s = document.createElement("small");
+            s.textContent = [m.quando, m.observacao, m.usuario].filter(Boolean).join(" · ") + ` · saldo ${m.saldo}`;
+            meio.append(b, s);
+            const q = document.createElement("span"); q.className = "q"; q.textContent = m.quantidade;
+            linha.append(icone, meio, q);
+            $("hLista").appendChild(linha);
+        });
+    }
+
+    /* Busca e filtro por situação. */
+    let sit = "";
+    function filtrar() {
+        const termo = $("eBusca").value.trim().toLowerCase();
+        document.querySelectorAll(".e-linha").forEach(l => {
+            l.hidden = (sit && l.dataset.sit !== sit) || (termo && !l.dataset.busca.includes(termo));
+        });
+    }
+    $("eBusca").addEventListener("input", filtrar);
+    $("eFiltros").addEventListener("click", e => {
+        const b = e.target.closest(".g-chip"); if (!b) return;
+        sit = b.dataset.f;
+        document.querySelectorAll("#eFiltros .g-chip").forEach(x => x.classList.toggle("ativo", x === b));
+        filtrar();
+    });
+
+    /* Gráficos. */
+    window.addEventListener("load", () => {
+        if (!window.Chart) return;
+        const css = getComputedStyle(document.documentElement);
+        const texto = css.getPropertyValue("--cf-texto-suave").trim(), grade = css.getPropertyValue("--cf-grafico-grade").trim();
+        const marca = css.getPropertyValue("--cf-marca").trim();
+        Chart.defaults.color = texto;
+        Chart.defaults.font.family = "inherit";
+        const saidas = JSON.parse($("grafico-saidas").textContent);
+        new Chart($("graficoSaidas"), {
+            type: "bar",
+            data: { labels: saidas.labels, datasets: [{ data: saidas.valores, backgroundColor: marca, borderRadius: 8, maxBarThickness: 22 }] },
+            options: {
+                indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { x: { grid: { color: grade }, beginAtZero: true }, y: { grid: { display: false } } }
+            }
+        });
+        const situacao = JSON.parse($("grafico-situacao").textContent);
+        new Chart($("graficoSituacao"), {
+            type: "doughnut",
+            data: { labels: ["Em dia", "Baixo", "Zerado"], datasets: [{ data: situacao, backgroundColor: ["#16a34a", "#d97706", "#dc2626"], borderWidth: 0 }] },
+            options: { maintainAspectRatio: false, cutout: "66%", plugins: { legend: { position: "right", labels: { usePointStyle: true, boxWidth: 8 } } } }
+        });
+    });
+
+    return { abrir, fechar, historico };
+})();
+</script>
+{% endblock %}

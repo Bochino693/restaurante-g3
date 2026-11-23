@@ -1,0 +1,167 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br" data-tema="sol">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <title>Pedido #{{ pedido.id }} · {{ config.nome }}</title>
+    {% include "_tema_head.html" %}
+    <style>
+        body { color: var(--cf-texto); }
+        .ac-pagina { max-width: 620px; margin: 0 auto; padding: 16px 16px 48px; }
+        .ac-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+        .ac-topo .logo { height: 40px; }
+        .ac-card { background: var(--cf-superficie); border: 1px solid var(--cf-borda); border-radius: 26px; box-shadow: var(--cf-sombra); padding: 20px; margin-bottom: 14px; }
+        .ac-heroi { position: relative; overflow: hidden; color: #fff; border: 0; background: linear-gradient(135deg, var(--cf-marca), var(--cf-marca-forte)); }
+        .ac-heroi.ok { background: linear-gradient(135deg, #16a34a, #15803d); }
+        .ac-heroi.cancelado { background: linear-gradient(135deg, #52525b, #27272a); }
+        .ac-heroi small { display: block; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; opacity: .8; }
+        .ac-heroi h1 { font-size: 26px; font-weight: 900; line-height: 1.1; margin: 6px 0 4px; }
+        .ac-heroi p { font-size: 14px; font-weight: 600; opacity: .92; }
+        .ac-heroi .icone { position: absolute; right: -10px; bottom: -18px; font-size: 110px; opacity: .16; }
+        .ac-previsao { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 7px 13px; border-radius: 99px; background: rgba(255, 255, 255, .2); font-size: 13px; font-weight: 800; }
+        .ac-etapas { list-style: none; margin: 0; padding: 0; }
+        .ac-etapa { position: relative; display: flex; gap: 14px; padding-bottom: 22px; }
+        .ac-etapa:last-child { padding-bottom: 0; }
+        .ac-etapa::before { content: ""; position: absolute; left: 19px; top: 40px; bottom: 0; width: 3px; border-radius: 3px; background: var(--cf-superficie-3); }
+        .ac-etapa:last-child::before { display: none; }
+        .ac-etapa.feita::before { background: #16a34a; }
+        .ac-bola { flex: none; width: 41px; height: 41px; border-radius: 50%; display: grid; place-items: center; background: var(--cf-superficie-2); color: var(--cf-texto-suave); font-size: 15px; transition: all .4s; }
+        .ac-etapa.feita .ac-bola { background: #16a34a; color: #fff; }
+        .ac-etapa.atual .ac-bola { background: var(--cf-marca); color: #fff; box-shadow: 0 0 0 6px var(--cf-marca-suave); animation: ac-pulso 1.6s ease-in-out infinite; }
+        @keyframes ac-pulso { 50% { box-shadow: 0 0 0 12px transparent; } }
+        .ac-etapa b { display: block; font-size: 15px; font-weight: 900; color: var(--cf-texto-suave); }
+        .ac-etapa.feita b, .ac-etapa.atual b { color: var(--cf-texto); }
+        .ac-etapa span { font-size: 12.5px; font-weight: 600; color: var(--cf-texto-suave); }
+        .ac-etapa time { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--cf-texto-suave); padding-top: 3px; }
+        .ac-titulo { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--cf-texto-suave); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .ac-mapa { width: 100%; height: 240px; border: 0; border-radius: 18px; background: var(--cf-superficie-2); }
+        .ac-endereco { font-weight: 800; margin-bottom: 10px; }
+        .ac-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--cf-borda); font-size: 14px; }
+        .ac-item:last-child { border-bottom: 0; }
+        .ac-item .q { font-weight: 900; color: var(--cf-marca); min-width: 28px; }
+        .ac-item .n { flex: 1; font-weight: 700; }
+        .ac-item .n small { display: block; font-weight: 600; color: var(--cf-texto-suave); }
+        .ac-item .v { font-weight: 800; white-space: nowrap; }
+        .ac-conta div { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 700; color: var(--cf-texto-2); padding: 3px 0; }
+        .ac-conta .final { font-size: 19px; font-weight: 900; color: var(--cf-texto); border-top: 1px solid var(--cf-borda); margin-top: 8px; padding-top: 10px; }
+        .ac-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .ac-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 16px; font-weight: 900; font-size: 14px; background: var(--cf-superficie); border: 1px solid var(--cf-borda); color: var(--cf-texto); }
+        .ac-btn.whats { background: #25d366; border-color: #25d366; color: #fff; }
+        .ac-vivo { text-align: center; font-size: 11.5px; font-weight: 700; color: var(--cf-texto-suave); margin-top: 6px; }
+        .ac-vivo i { color: #16a34a; font-size: 8px; vertical-align: middle; animation: ac-pisca 1.4s infinite; }
+        @keyframes ac-pisca { 50% { opacity: .2; } }
+    </style>
+</head>
+<body class="font-sans min-h-screen">
+{% include "_ceu.html" %}
+<div class="ac-pagina">
+    <header class="ac-topo">
+        <a href="{% url 'cardapio' %}" class="logo">{% include "_logo.html" with config_loja=config %}</a>
+        <div class="relative"><button type="button" class="cf-tema-botao" data-cf-tema-botao aria-label="Escolher tema"></button></div>
+    </header>
+
+    <section id="heroi" class="ac-card ac-heroi{% if acompanhamento.cancelado %} cancelado{% elif acompanhamento.finalizado %} ok{% endif %}">
+        <small>Pedido #{{ pedido.id }} · {{ pedido.nome_cliente }}</small>
+        <h1 id="heroiTitulo"></h1>
+        <p id="heroiTexto"></p>
+        <span class="ac-previsao" id="heroiPrevisao"><i class="far fa-clock"></i> Previsão: por volta das {{ acompanhamento.previsao }}</span>
+        <i class="fas fa-utensils icone" id="heroiIcone"></i>
+    </section>
+
+    <section class="ac-card" id="blocoEtapas">
+        <div class="ac-titulo"><i class="fas fa-route"></i> Andamento</div>
+        <ol class="ac-etapas" id="etapas"></ol>
+    </section>
+
+    {% if mapas.embutido %}
+    <section class="ac-card">
+        <div class="ac-titulo"><i class="fas fa-map-location-dot"></i> {% if pedido.entrega %}Entrega em{% else %}Retirar em{% endif %}</div>
+        <p class="ac-endereco">{% if pedido.entrega %}{{ endereco }}{% else %}{{ config.endereco }}{% if config.cidade %} · {{ config.cidade }}{% endif %}{% endif %}</p>
+        <iframe class="ac-mapa" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Mapa" src="{{ mapas.embutido }}"></iframe>
+    </section>
+    {% elif not pedido.entrega %}
+    <section class="ac-card"><div class="ac-titulo"><i class="fas fa-store"></i> Retirada no balcão</div><p class="ac-endereco">{{ config.nome }}</p></section>
+    {% endif %}
+
+    <section class="ac-card">
+        <div class="ac-titulo"><i class="fas fa-receipt"></i> Seu pedido · {{ detalhe.unidades }} iten{{ detalhe.unidades|pluralize:"m,s" }}</div>
+        {% for item in detalhe.itens %}
+        <div class="ac-item">
+            <span class="q">{{ item.qtd }}x</span>
+            <span class="n">{{ item.nome }}{% for a in item.adicionais %}<small>+ {{ a.nome }}</small>{% endfor %}</span>
+            <span class="v">R$ {{ item.subtotal }}</span>
+        </div>
+        {% endfor %}
+        <div class="ac-conta" style="margin-top: 12px">
+            <div><span>Itens</span><span>R$ {{ detalhe.total }}</span></div>
+            {% if detalhe.taxa %}<div><span>Taxa de entrega</span><span>R$ {{ detalhe.taxa }}</span></div>{% endif %}
+            <div class="final"><span>Total</span><span>R$ {{ detalhe.total_final }}</span></div>
+            <div><span>Pagamento na {% if pedido.entrega %}entrega{% else %}retirada{% endif %}</span><span>{{ detalhe.pagamento_label }}{% if detalhe.troco_para %} · troco p/ R$ {{ detalhe.troco_para }}{% endif %}</span></div>
+        </div>
+        {% if pedido.descricao %}<p style="margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--cf-texto-suave)"><i class="fas fa-note-sticky"></i> {{ pedido.descricao }}</p>{% endif %}
+    </section>
+
+    <div class="ac-botoes">
+        {% if whatsapp_link %}<a class="ac-btn whats" href="{{ whatsapp_link }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Falar com a casa</a>{% endif %}
+        <a class="ac-btn" href="{% url 'cardapio' %}"><i class="fas fa-utensils"></i> Voltar ao cardápio</a>
+    </div>
+    <p class="ac-vivo"><i class="fas fa-circle"></i> Atualiza sozinho · última conferência às <span id="conferido">{{ acompanhamento.atualizado }}</span></p>
+</div>
+
+{{ acompanhamento|json_script:"dados-iniciais" }}
+<script>
+(function () {
+    var entrega = {{ pedido.entrega|yesno:"true,false" }};
+    var TEXTOS = [
+        ["Recebemos seu pedido!", "Aguarde: a casa já vai confirmar.", "fa-receipt"],
+        ["Pedido em preparo", "Confirmado! Estamos preparando tudo.", "fa-fire-burner"],
+        entrega ? ["Saiu para entrega", "O motoboy está a caminho do seu endereço.", "fa-motorcycle"]
+                : ["Pronto para retirar", "Pode vir buscar no balcão.", "fa-bag-shopping"],
+        entrega ? ["Pedido entregue", "Bom apetite! Obrigado pela preferência.", "fa-circle-check"]
+                : ["Pedido retirado", "Bom apetite! Obrigado pela preferência.", "fa-circle-check"]
+    ];
+    var etapaAnterior = null;
+    function desenhar(d) {
+        var heroi = document.getElementById("heroi");
+        heroi.classList.toggle("cancelado", d.cancelado);
+        heroi.classList.toggle("ok", d.finalizado);
+        var t = d.cancelado ? ["Pedido cancelado", "Fale com a casa se precisar de ajuda.", "fa-ban"] : TEXTOS[Math.max(0, d.etapa)];
+        document.getElementById("heroiTitulo").textContent = t[0];
+        document.getElementById("heroiTexto").textContent = t[1];
+        document.getElementById("heroiIcone").className = "fas " + t[2] + " icone";
+        document.getElementById("heroiPrevisao").style.display = (d.cancelado || d.finalizado) ? "none" : "";
+        document.getElementById("blocoEtapas").style.display = d.cancelado ? "none" : "";
+        var lista = document.getElementById("etapas");
+        lista.textContent = "";
+        d.etapas.forEach(function (e, i) {
+            var li = document.createElement("li");
+            var feita = i < d.etapa || d.finalizado;
+            li.className = "ac-etapa" + (feita ? " feita" : "") + (i === d.etapa && !d.finalizado ? " atual" : "");
+            var bola = document.createElement("div"); bola.className = "ac-bola";
+            bola.innerHTML = '<i class="fas ' + (feita ? "fa-check" : e.icone) + '"></i>';
+            var meio = document.createElement("div");
+            var b = document.createElement("b"); b.textContent = e.titulo;
+            var s = document.createElement("span"); s.textContent = (i <= d.etapa) ? e.texto : "";
+            meio.appendChild(b); meio.appendChild(s);
+            var hora = document.createElement("time"); hora.textContent = (i <= d.etapa) ? e.hora : "";
+            li.appendChild(bola); li.appendChild(meio); li.appendChild(hora);
+            lista.appendChild(li);
+        });
+        document.getElementById("conferido").textContent = d.atualizado;
+        if (etapaAnterior !== null && d.etapa !== etapaAnterior && navigator.vibrate) navigator.vibrate([120, 60, 120]);
+        etapaAnterior = d.etapa;
+        return d.cancelado || d.finalizado;
+    }
+    var fim = desenhar(JSON.parse(document.getElementById("dados-iniciais").textContent));
+    function conferir() {
+        if (fim || document.hidden) return;
+        fetch("{% url 'acompanhar_dados' pedido.codigo %}").then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { if (d) fim = desenhar(d); }).catch(function () {});
+    }
+    setInterval(conferir, 12000);
+    document.addEventListener("visibilitychange", conferir);
+})();
+</script>
+</body>
+</html>

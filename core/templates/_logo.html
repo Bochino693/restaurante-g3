@@ -1,0 +1,1 @@
+{% if config_loja.logo %}<img src="{{ config_loja.logo.url }}" alt="{{ config_loja.nome }}" class="g3-logo-img" decoding="async">{% else %}<span class="g3-logo" aria-label="{{ config_loja.nome }}"><span class="g3-logo-selo">G3</span><span class="g3-logo-texto"><b>{{ config_loja.nome|default:"G3 Bar e Restaurante" }}</b><small>bar · restaurante</small></span></span>{% endif %}
