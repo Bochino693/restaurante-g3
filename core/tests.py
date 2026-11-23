@@ -949,3 +949,26 @@ class PedidoOnlineTests(BaseG3):
         resposta = self.client.get(reverse("cardapio"))
         self.assertTrue(resposta.context["catalogo"][str(self.dose.id)]["esgotado"])
         self.assertFalse(resposta.context["catalogo"][str(self.cerveja.id)]["esgotado"])
+
+
+class InstalacaoTests(TestCase):
+    """/instalar/: cria o primeiro administrador e depois se fecha."""
+
+    def test_cria_o_administrador_uma_vez_so(self):
+        self.assertContains(self.client.get("/instalar/"), "Criar o administrador")
+        dados = {"usuario": "dono", "senha": "g3-bar-2026", "senha2": "g3-bar-2026"}
+        resposta = self.client.post("/instalar/", dados)
+        self.assertRedirects(resposta, "/configuracoes/", fetch_redirect_response=False)
+        dono = User.objects.get()
+        self.assertTrue(dono.is_superuser and dono.check_password("g3-bar-2026"))
+        # Já existe usuário: a página não cria mais ninguém.
+        self.client.logout()
+        resposta = self.client.post("/instalar/", {"usuario": "intruso", "senha": "outra-senha-99", "senha2": "outra-senha-99"})
+        self.assertContains(resposta, "Sistema instalado")
+        self.assertEqual(User.objects.count(), 1)
+
+    def test_senha_fraca_ou_diferente_nao_cria(self):
+        for senha, senha2 in [("123", "123"), ("g3-bar-2026", "outra")]:
+            resposta = self.client.post("/instalar/", {"usuario": "dono", "senha": senha, "senha2": senha2})
+            self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(User.objects.count(), 0)

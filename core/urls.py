@@ -10,7 +10,10 @@ from .views import (CaixaView,
                     confirmar_impressao, pedidos_pendentes_impressao, ResumoPedidosView, PedidoReimprimirView,
                     registrar_clique, RelatorioPedidosView, PedidoDetalheView)
 
+from .instalar import instalar
+
 urlpatterns = [
+    path('instalar/', instalar, name='instalar'),
     path('', CardapioClienteView.as_view(), name='cardapio'),
     path('caixa/', CaixaView.as_view(), name='caixa'),
     path('estoque/', EstoqueView.as_view(), name='estoque'),

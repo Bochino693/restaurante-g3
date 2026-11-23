@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.http import HttpResponse
+from django.db import DatabaseError
+from django.http import HttpResponse, HttpResponseRedirect
 from django.utils.html import escape
 
 
@@ -23,3 +24,12 @@ class ConfiguracaoPendente:
             f"e faça um <b>Redeploy</b>:</p><ul>{itens}</ul></body>",
             status=503,
         )
+
+    def process_exception(self, request, exception):
+        """Banco novo, ainda sem as tabelas: leva para a instalação em vez do erro 500."""
+        if isinstance(exception, DatabaseError) and not request.path.startswith("/instalar/"):
+            from .instalar import _estado
+            erro, pendentes, _tem_usuario = _estado()
+            if erro or pendentes:
+                return HttpResponseRedirect("/instalar/")
+        return None

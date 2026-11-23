@@ -124,19 +124,15 @@ Na Vercel o sistema já sobe com `DEBUG` desligado. Sem `SECRET_KEY` ou
 Se o outro projeto tiver algum ajuste em *Settings > Build and Deployment*
 (Framework Preset, Build/Install Command), repita o mesmo aqui.
 
-**4. Criar as tabelas e o administrador** (uma vez, do seu computador,
-apontando para o banco de produção). No PowerShell, na pasta do projeto:
-
-```
-pip install -r requirements.txt
-$env:DATABASE_URL="a-mesma-URI-do-Supabase"
-python manage.py migrate
-python manage.py createsuperuser
-```
-
-A Vercel não roda `migrate` sozinha: sempre que uma atualização trouxer
-migration nova, repita `python manage.py migrate` com o `DATABASE_URL` de
-produção.
+**4. Criar as tabelas e o administrador.** Abra
+`https://<seu-projeto>.vercel.app/instalar/` (o site leva para lá sozinho
+enquanto o banco está vazio): um botão cria as tabelas e, em seguida, você
+escolhe usuário e senha do administrador. Depois que existe um usuário, a
+página se fecha; só o administrador logado volta nela, para aplicar
+atualizações do banco (a Vercel não roda `migrate` sozinha). Faça este passo
+logo depois do deploy: enquanto não há administrador, quem abrir a página
+primeiro cria o dele. Pelo terminal dá no mesmo: `python manage.py migrate`
+e `python manage.py createsuperuser` com o `DATABASE_URL` de produção.
 
 **5. Conferir.** Abra `https://<seu-projeto>.vercel.app/login/`, entre, vá em
 **Dados da casa** (nome, WhatsApp, endereço, cidade, taxa de entrega) e
