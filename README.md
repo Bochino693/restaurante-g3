@@ -81,8 +81,8 @@ mostram o lucro bruto estimado e a margem (a dose custa a fração da garrafa).
 | Variável | Para quê | Padrão |
 | --- | --- | --- |
 | `DATABASE_URL` | banco (Supabase) | SQLite local |
-| `SECRET_KEY` | segurança do Django | **defina em produção** |
-| `DEBUG` | `False` em produção | `True` |
+| `SECRET_KEY` | segurança do Django | **obrigatória em produção** |
+| `DEBUG` | liga o modo de desenvolvimento | `True` no computador, `False` na Vercel |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | fotos dos produtos | sem elas, as fotos ficam no disco (só para desenvolvimento: na Vercel o disco não guarda) |
 | `LOJA_DIAS` | dias que abre (0 = segunda ... 6 = domingo) | `0,1,2,3,4,5,6` |
 | `LOJA_ABRE` / `LOJA_FECHA` | horário (hora cheia). `LOJA_FECHA` menor que `LOJA_ABRE` = fecha depois da meia-noite | `10` / `23` |
@@ -94,15 +94,61 @@ mostram o lucro bruto estimado e a margem (a dose custa a fração da garrafa).
 | `MARMITA_PRECO_COM_REFRI`, `REFRI_MARMITA_PRECO_MAX` | oferecer o refri barato como adicional das marmitas desse preço | `0` (desligado) / `2.00` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD` | usados por `python manage.py createsu` | — |
 
-## Publicar (igual ao outro restaurante)
+## Publicar na Vercel (produção)
 
-1. Projeto novo na Vercel apontando para este repositório, com as variáveis
-   acima (`DATABASE_URL` de um banco **novo** no Supabase, `SECRET_KEY`,
-   `DEBUG=False` e as três da Cloudinary).
-2. Uma vez, com o `DATABASE_URL` de produção: `python manage.py migrate` e
-   `python manage.py createsu`.
-3. Depois de mexer em CSS/JS: `python manage.py collectstatic --noinput` (a
-   pasta `staticfiles/` vai versionada; é dela que o whitenoise serve).
+O projeto tem a mesma estrutura do outro restaurante, que já roda na Vercel:
+`manage.py` na raiz, `rest/wsgi.py`, `requirements.txt` e a pasta
+`staticfiles/` versionada. Não há `vercel.json`, como lá.
+
+**1. Banco (Supabase).** Crie um projeto **novo** (não use o banco do outro
+restaurante). Em *Connect*, copie a URI do **Transaction pooler** (porta
+6543) e troque `[YOUR-PASSWORD]` pela senha.
+
+**2. Fotos (Cloudinary).** No painel da Cloudinary, anote *Cloud name*, *API
+key* e *API secret*. Pode ser a mesma conta do outro restaurante. Sem essas
+três variáveis as fotos não ficam salvas na Vercel.
+
+**3. Projeto na Vercel.** *Add New > Project*, importe
+`Bochino693/restaurante-g3` e, antes de clicar em Deploy, abra *Environment
+Variables* e crie (modelo em `.env.example`):
+
+| Variável | Valor |
+| --- | --- |
+| `SECRET_KEY` | o resultado de `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
+| `DATABASE_URL` | a URI do Supabase do passo 1 |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | do passo 2 |
+| `LOJA_DIAS`, `LOJA_ABRE`, `LOJA_FECHA` | o horário da casa (opcional) |
+
+Na Vercel o sistema já sobe com `DEBUG` desligado. Sem `SECRET_KEY` ou
+`DATABASE_URL` ele se recusa a subir e o log do deploy diz qual falta.
+Se o outro projeto tiver algum ajuste em *Settings > Build and Deployment*
+(Framework Preset, Build/Install Command), repita o mesmo aqui.
+
+**4. Criar as tabelas e o administrador** (uma vez, do seu computador,
+apontando para o banco de produção). No PowerShell, na pasta do projeto:
+
+```
+pip install -r requirements.txt
+$env:DATABASE_URL="a-mesma-URI-do-Supabase"
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+A Vercel não roda `migrate` sozinha: sempre que uma atualização trouxer
+migration nova, repita `python manage.py migrate` com o `DATABASE_URL` de
+produção.
+
+**5. Conferir.** Abra `https://<seu-projeto>.vercel.app/login/`, entre, vá em
+**Dados da casa** (nome, WhatsApp, endereço, cidade, taxa de entrega) e
+cadastre os produtos com foto. Teste um pedido pelo cardápio (`/`).
+
+**Domínio próprio:** depois de adicionar em *Settings > Domains*, crie
+`ALLOWED_HOSTS_EXTRA=seudominio.com.br` e
+`CSRF_TRUSTED_ORIGINS_EXTRA=https://seudominio.com.br` e faça o redeploy.
+
+**Atualizações:** cada `git push` na `main` publica sozinho. Depois de mexer
+em CSS/JS, rode `python manage.py collectstatic --noinput` e suba a pasta
+`staticfiles/` junto (é dela que o whitenoise serve os arquivos).
 
 ## Impressão das notinhas (QZ Tray)
 

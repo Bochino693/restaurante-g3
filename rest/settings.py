@@ -2,11 +2,22 @@ from decimal import Decimal
 from pathlib import Path
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "troque-isso")
-DEBUG = os.environ.get("DEBUG", "True") == "True"
+# Na Vercel (variável VERCEL definida pela plataforma) o padrão é produção:
+# DEBUG desligado, a menos que DEBUG=True seja posto de propósito.
+NA_VERCEL = bool(os.environ.get("VERCEL"))
+DEBUG = os.environ.get("DEBUG", "False" if NA_VERCEL else "True").strip().lower() in ("true", "1")
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "Defina a variável de ambiente SECRET_KEY (Vercel > Settings > Environment Variables)."
+        )
+    SECRET_KEY = "chave-somente-para-desenvolvimento"
 
 ALLOWED_HOSTS = [
     "127.0.0.1",
@@ -164,6 +175,14 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "True") == "True"
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Em produção sem banco externo o SQLite some a cada deploy (e na Vercel nem
+# grava): melhor avisar no log do que perder pedido.
+if NA_VERCEL and not os.environ.get("DATABASE_URL"):
+    raise ImproperlyConfigured("Defina DATABASE_URL (banco do Supabase) nas variáveis da Vercel.")
 
 # Horário de funcionamento. LOJA_DIAS: 0 = segunda ... 6 = domingo.
 # LOJA_FECHA menor que LOJA_ABRE = fecha depois da meia-noite (ex.: 10 e 2).
